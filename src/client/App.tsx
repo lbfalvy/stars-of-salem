@@ -30,9 +30,9 @@ export class App extends Component{
   render(){
     return(
       <div className="App">
-        <h1> Log something! </h1>
-        <input type="text" value={this.state.value} onChange={this.handleChange} />
-        <button onClick={this.handleSubmit}>Send data</button>
+        <h1> Log something else! </h1>
+        {/*<input type="text" value={this.state.value} onChange={this.handleChange} />
+        <button onClick={this.handleSubmit}>Send data</button>*/}
       </div>
     );
   }
