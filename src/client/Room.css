@@ -1,0 +1,44 @@
+.room {
+    position: absolute;
+    box-sizing: border-box;
+    height: 100%;
+    width: 100%;
+
+    background-size: cover;
+    background-position: 0 70%;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.room .options li > * {
+    padding-bottom: 2px;
+    display: inline;
+}
+.room .options li > *:not(:first-child)::before {
+    content: ' - ';
+}
+
+.room .people {
+    background: white;
+    color: black;
+    position: relative;
+    padding: 10px;
+}
+
+.room .options {
+    margin-bottom: 0;
+    padding: 30px 50px;
+    background: white;
+    color: black;
+}
+
+.room h5 {
+    display: inline-block;
+    font-size: inherit;
+    font-weight: normal;
+    font-weight: 900;
+    margin: 0 1ex;
+    /*vertical-align: top;*/
+}

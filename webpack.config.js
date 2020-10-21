@@ -1,21 +1,13 @@
 const path = require('path');
 const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 
 var isDevelopment = process.env.NODE_ENV !== 'production';
 
-module.exports = {
+common_config = {
   mode: isDevelopment ? 'development' : 'production',
   devtool: 'inline-source-map',
-  devServer: {
-    contentBase: './dist',
-    hot: true
-  },
-  // Build targets
-  entry: {
-    client: './src/client/index.tsx',
-    server: './src/server/index.ts'
-  },
   output: {
     filename: '[name].js',
     path: path.resolve(__dirname, 'dist')
@@ -24,28 +16,22 @@ module.exports = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js']
   },
-  // Hot reload
-  plugins: [
-    isDevelopment && new ReactRefreshWebpackPlugin()
-  ].filter(Boolean),
   module: {
     rules: [
       {
         test: /\.tsx?$/,
         exclude: '/node_modules/',
         use: [
-          isDevelopment && {
+          {
             loader: 'babel-loader',
-            options: { plugins: [ 'react-refresh/babel' ] }
+            options: {
+              plugins: [isDevelopment && 'react-refresh/babel'].filter(Boolean),
+              presets: ['@babel/preset-typescript']
+            }
           },
-          'ts-loader'
-        ].filter(Boolean)
+          'ts-loader',
+        ]
       },
-      /*{
-        test: /\.tsx?$/,
-        use: 'ts-loader',
-        exclude: '/node_modules/'
-      },*/
       {
         test: /\.css$/,
         use: [
@@ -64,3 +50,39 @@ module.exports = {
     ]
   }
 };
+
+client_config = {
+  // Server with hot reload capabilities
+  devServer: {
+    contentBase: './dist',
+    hot: true,
+    hotOnly: true,
+    injectHot: true,
+  },
+  // Build target
+  entry: {
+    client: './src/client/index.tsx'
+  },
+  // Hot reload
+  plugins: [
+    isDevelopment && new ReactRefreshWebpackPlugin(),
+    isDevelopment && new webpack.HotModuleReplacementPlugin(),
+    new HtmlWebpackPlugin({
+      showErrors: true,
+      title: 'Stars of Salem',
+      template: './src/client/index.ejs'
+    })
+  ].filter(Boolean),
+};
+Object.setPrototypeOf(client_config, common_config);
+
+server_config = {
+  target: 'node',
+  // Build target
+  entry: {
+    server: './src/server/index.ts'
+  },
+};
+Object.setPrototypeOf(server_config, common_config);
+
+module.exports = [client_config, server_config];

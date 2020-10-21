@@ -1,16 +1,20 @@
 {
   "compilerOptions": {
     "outDir": "./dist/",
+    "lib": [ "es6", "DOM" ],
     "target": "es5",
     "allowSyntheticDefaultImports" : true,
     "esModuleInterop" : true,
-    "allowJs": true,
-    "module": "es6",
+    "allowJs": false,
+    "module": "CommonJS",
     "jsx": "react",
     "strict": true,
     "noImplicitAny": true,
     "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "moduleResolution": "node",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "typeRoots": ["./custom_types"]
   }
 }

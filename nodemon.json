@@ -1,5 +1,8 @@
 {
-    "watch": "src/server/**/*.ts",
-    "exec": "ts-node src/server/index.ts",
+    "watch": [
+        "src/server/**/*.ts",
+        "src/shared/**/*.ts"
+    ],
+    "exec": "node --inspect -r ts-node/register src/server/index.ts",
     "ext": "ts,js,mjs,json"
 }

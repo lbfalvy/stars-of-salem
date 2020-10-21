@@ -1,0 +1,9 @@
+.person-card {
+    /*border-radius: 1em;*/
+    border-bottom: 2px solid var(--color);
+    color: var(--color);
+    background: white;
+    /*display: inline-block;
+    padding: 5px 10px;*/
+    display: inline;
+}

@@ -1,8 +1,4 @@
 {
-    "extends": [
-        "plugin:import/errors",
-        "plugin:import/warnings"
-    ],
     "parserOptions": {
         "sourceType": "module"
     },
