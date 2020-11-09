@@ -1,4 +1,4 @@
-import { TypedEvent } from '../../TypedEvent';
+import { exposeResolve, TypedEvent } from '../../TypedEvent';
 import * as Interfaces from '../Interfaces';
 import * as Protocol from './Protocol';
 
@@ -8,65 +8,50 @@ export interface SessionOptions {
 }
 
 export class Session implements ISession {
-    public readonly message = new TypedEvent<Interfaces.MessageEvent>();
-    public readonly closed = new TypedEvent<Interfaces.CloseEvent>();
-    public readonly broken_pipe = new TypedEvent<Interfaces.CloseMessage>();
+    public readonly message = new TypedEvent<Interfaces.Data>();
+    public readonly closed = exposeResolve<Interfaces.CloseEvent>();
+    public readonly brokenPipe = new TypedEvent<Interfaces.CloseMessage>();
     public readonly resuming = new TypedEvent<void>();
     public isClosed = false;
-    private _connection: Interfaces.Connection | undefined;
-    private timeout_handle: number | NodeJS.Timeout | undefined;
+    public get isReady():boolean {
+        return this.connection !== undefined;
+    }
+    private connection: Interfaces.Connection | undefined;
+    private timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     private readonly timeout: number;
     private readonly takeover: boolean;
-    public get connection(): Interfaces.Connection | undefined {
-        return this._connection;
+
+    public constructor(socket: Interfaces.Connection, options?: SessionOptions) {
+        this.connection = socket;
+        this.engageHandlers(socket);
+        this.timeout = options?.timeout || 10_000;
+        this.takeover = options?.takeover === undefined ? true : options.takeover;
     }
-    public set connection(value: Interfaces.Connection | undefined) {
+
+    public onReconnect(conn:Interfaces.Connection):void {
         // If it's been closed already
         if (this.isClosed) {
             throw new Interfaces.ConnectionClosedError();
         }
-        // If it's a reconnection
-        const resuming = value && !this.connection;
-        if (value && this.connection) {
-            // This is a takeover. If takeovers aren't supported, reject the socket
+        // If the old connection is still open, close one based on the takeover policy
+        if (this.connection !== undefined) {
             if (!this.takeover) {
-                value.close(Protocol.messages.rejectedTakeover);
+                conn.close(Protocol.messages.rejectedTakeover);
                 return;
             }
             this.connection.close(Protocol.messages.takeover);
         }
         // Get rid of the timeout
-        if (this.timeout_handle) {
-            if (typeof this.timeout_handle == 'number') {
-                clearTimeout(this.timeout_handle); // In browser
-            } else {
-                clearTimeout(this.timeout_handle); // In Node
-            }
+        if (this.timeoutHandle) {
+            clearTimeout(this.timeoutHandle);
         }
-
         // Update field
-        this._connection = value;
-
-        // Forward messages
-        value?.message.pipe_raw(this.message);
-        // When the pipe breaks, signal, start timeout.
-        value?.closed.once(ev => {
-            this.broken_pipe.emit(ev.message);
-            this.connection = undefined;
-            const th = this.close.bind(this, Protocol.messages.timeout);
-            this.timeout_handle = setTimeout(th, this.timeout);
-        });
-        if (resuming) {
-            // Simple case
+        if(!this.isReady) {
             this.resuming.emit();
-            value?.send(Protocol.RESUME_COMMAND);
         }
-    }
-
-    public constructor(socket: Interfaces.Connection, options?: SessionOptions) {
-        this.connection = socket;
-        this.timeout = options?.timeout || 10_000;
-        this.takeover = options?.takeover || true;
+        this.connection = conn;
+        conn.send(Protocol.RESUME_COMMAND);
+        this.engageHandlers(conn);
     }
 
     // This could have been an async function if it wasn't for Typescript
@@ -81,8 +66,8 @@ export class Session implements ISession {
         } 
         // Hanging session
         return Promise.race([
-            this.resuming.wait(),
-            this.closed.wait()
+            this.resuming.next,
+            this.closed
         ]).then(() => {
             // Session restored
             if (this.connection) {
@@ -100,19 +85,54 @@ export class Session implements ISession {
         if (this.connection) {
             this.connection.close(message);
         }
-        this.isClosed = true;
-        this.closed.emit({ message, local: true });
+        this.closeObject({ message, local: true });
         return;
     }
 
     public terminate():void {
         this.isClosed = true;
-        return this.connection?.terminate();
+        this.connection?.close(Interfaces.TERMINATED_MESSAGE);
+        this.closed.resolve({ message: Interfaces.TERMINATED_MESSAGE, local: true });
+        // This is a promise but we aren't waiting for it
+    }
+
+    private engageHandlers(conn:Interfaces.Connection) {
+        // Forward messages
+        conn.message.pipeRaw(this.message);
+        // When the pipe breaks
+        conn.closed.then(ev => this.handleConnectionClose(ev));
+    }
+
+    private handleConnectionClose(ev:Interfaces.CloseEvent) {
+        if (ev.message.code >= 0) { // Positive values mean application reasons
+            this.closeObject({ message: ev.message, local: false });
+        } else { // Negative values mean websocket reasons
+            this.handleBrokenPipe(ev.message);
+        }
+    }
+
+    private handleBrokenPipe(msg:Interfaces.CloseMessage) {
+        console.log('Broken pipe detected sside');
+        this.brokenPipe.emit(msg); // Notify
+        this.connection = undefined;
+        // After `timeout` ms, unless cleared, notify that the session was closed.
+        this.timeoutHandle = setTimeout(
+            () => this.closeObject({ message: Protocol.messages.timeout, local: false }),
+            this.timeout
+        );
+    }
+
+    private closeObject(event:Interfaces.CloseEvent):void {
+        this.isClosed = true;
+        this.connection = undefined;
+        this.closed.resolve(event);
     }
 }
 
 export interface ISession extends Interfaces.Connection {
-    readonly broken_pipe: TypedEvent<Interfaces.CloseMessage>;
+    readonly brokenPipe: TypedEvent<Interfaces.CloseMessage>;
     readonly resuming: TypedEvent<void>;
-    connection: Interfaces.Connection | undefined;
+    readonly isReady: boolean;
+    //connection: Interfaces.Connection | undefined;
+    onReconnect(conn:Interfaces.Connection):void
 }

@@ -1,6 +1,9 @@
 module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
+  parserOptions: {
+    project: './tsconfig.json'
+  },
   plugins: [
     '@typescript-eslint',
     'import'
@@ -30,14 +33,20 @@ module.exports = {
     }
   ],
   rules: {
-    'brace-style': 'error',
-    curly: 'error',
-    semi: 'error',
+    'brace-style': 'warn',
+    curly: 'warn',
+    semi: 'warn',
     "no-unused-vars": "off",
     '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-unused-vars': ['error', {
-      varsIgnorePattern: '[uU]nused'
+    '@typescript-eslint/no-unnecessary-condition': 'warn',
+    '@typescript-eslint/no-unused-vars': ['warn', {
+      varsIgnorePattern: '^_'
     }],
+    '@typescript-eslint/naming-convention': ['error',
+      { selector: 'typeLike', format: ['PascalCase'] },
+      { selector: 'memberLike', modifiers: ['public'], format: ['camelCase'] },
+      { selector: 'memberLike', modifiers: ['private'], format: ['camelCase'], leadingUnderscore: 'allow' }
+    ],
     'max-len': ['error', {
       code: 100,
       ignoreUrls: true,
@@ -45,7 +54,7 @@ module.exports = {
       ignoreTemplateLiterals: true,
       ignoreRegExpLiterals: true
     }],
-    indent: ['error', 4, {
+    indent: ['warn', 4, {
       FunctionDeclaration: { parameters: 'first' },
       FunctionExpression: { parameters: 'first' },
       CallExpression: { arguments:'first' },
@@ -54,5 +63,9 @@ module.exports = {
       ignoreComments: true,
       MemberExpression: 'off'
     }]
+  },
+  env: {
+    node: true,
+    es2017: true
   }
 };

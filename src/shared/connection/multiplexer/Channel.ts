@@ -1,5 +1,5 @@
-import { compose, copy_arraybuffer } from '../../arrayBuffer';
-import { TypedEvent } from '../../TypedEvent';
+import { copyArrayBuffer } from '../../arrayBuffer';
+import { exposeResolve, TypedEvent } from '../../TypedEvent';
 import * as Interfaces from '../Interfaces';
 import * as Protocol from './Protocol';
 
@@ -7,48 +7,54 @@ export interface ChannelDependencies { // TODO figure out why the interface is d
     decode: (source: ArrayBuffer, offset?: number, length?: number) => string,
     encode: (data: string) => ArrayBuffer
 }
-
+/*
+Protocol:
+                        | type ID | message data     |
+ | magic word | id      | EOT     | code    | reason |
+ | 2 bytes    | 2 bytes | 1 byte  | 2 bytes | ...    |
+*/
 export class Channel implements Interfaces.Connection {
     private readonly conn: Interfaces.Connection;
-    private readonly id: number;
+    public readonly id: number;
     private readonly injected: ChannelDependencies;
-    public readonly closed = new TypedEvent<Interfaces.CloseEvent>();
-    public readonly message = new TypedEvent<Interfaces.MessageEvent>();
+    public readonly closed = exposeResolve<Interfaces.CloseEvent>();
+    public readonly message = new TypedEvent<Interfaces.Data>();
     public isClosed = false;
 
     public constructor(conn: Interfaces.Connection, id: number, deps: ChannelDependencies) {
         this.injected = deps;
         this.conn = conn;
         this.id = id;
-        const message_handle = conn.message.on(ev => {
-            if (typeof ev.data == 'string') {
+        const message_handle = conn.message.on(msg => {
+            if (typeof msg == 'string') {
                 return;
             }
-            const view = new DataView(ev.data);
-            if (!this.is_message(view)) {
+            const view = new DataView(msg);
+            if (!Protocol.isClientMessage(view, this.id)) {
                 return;
             }
-            if (view.getUint16(4) == Protocol.END_OF_TRANSMISSION) { // If it's closed
-                if (view.byteLength > 8) {
-                    const message = {
-                        code: view.getUint16(6),
-                        reason: deps.decode(ev.data, 8)
+            if (Protocol.isClose(view)) { // If it's closed
+                let message:Interfaces.CloseMessage;
+                if (Protocol.hasContent(view)) {
+                    message = {
+                        code: Protocol.getCloseCode(view),
+                        reason: deps.decode(msg, Protocol.CLOSE_MSG_OFFSET)
                     };
-                    this.close_object({ message, local: false });
                 } else {
-                    this.close_object({ message: Interfaces.TERMINATED_MESSAGE, local: false });
+                    message = Interfaces.TERMINATED_MESSAGE;
                 }
+                this.closeInterface({ message, local: false });
                 return;
             }
             let payload: string | ArrayBuffer;
-            if (view.getUint8(4) == Protocol.CONTENT_STRING) {
-                payload = deps.decode(ev.data, 5);
+            if (Protocol.isTypeString(view)) {
+                payload = deps.decode(msg, Protocol.HEAD_LEN);
             } else {
-                payload = ev.data.slice(5);
+                payload = Protocol.getBinaryData(msg);
             }
-            this.message.emit({ data: payload }); // Emit the remaining data
+            this.message.emit(payload); // Emit the remaining data
         });
-        conn.closed.on(() => {
+        conn.closed.then(() => {
             if (this.isClosed) {
                 return;
             }
@@ -57,65 +63,35 @@ export class Channel implements Interfaces.Connection {
     }
 
     public async send(msg: Interfaces.Data): Promise<void> {
-        // Determine type code and convert msg to ArrayBuffer
-        let typemark: number;
-        if (typeof msg == 'string') {
-            typemark = Protocol.CONTENT_STRING;
-            msg = this.injected.encode(msg);
-        } else {
-            typemark = Protocol.CONTENT_BINARY;
+        if (msg instanceof ArrayBuffer) { // If it's binary, just send it
+            this.conn.send(Protocol.writeBinaryMsg(this.id, msg));
+            return;
         }
-        // Construct message
-        const blob = new ArrayBuffer(msg.byteLength + 5);
-        const writer = new DataView(blob);
-        this.write_head(writer);
-        writer.setUint8(4, typemark);
-        copy_arraybuffer(msg, 0, msg.byteLength, blob, 5);
-        // Send message
-        return this.conn.send(blob);
+        // Otherwise it's a string
+        const blob = this.injected.encode(msg);
+        const frame = new ArrayBuffer(blob.byteLength + Protocol.HEAD_LEN);
+        const writer = new DataView(frame);
+        Protocol.writeStringHeader(this.id, writer);
+        copyArrayBuffer(blob, 0, blob.byteLength, frame, Protocol.HEAD_LEN);
+        this.conn.send(frame);
     }
 
     public async close(msg: Interfaces.CloseMessage): Promise<void> {
-        // Construct closing message
-        // - encode reason
         const reason = this.injected.encode(msg.reason);
-        const close_message = new ArrayBuffer(8 + reason.byteLength);
-        const msgWriter = new DataView(close_message);
-        this.write_head(msgWriter);
-        msgWriter.setUint16(4, Protocol.END_OF_TRANSMISSION);
-        msgWriter.setUint16(6, msg.code);
-        copy_arraybuffer(reason, 0, reason.byteLength, close_message, 8);
-        // Send closing message
-        await this.conn.send(close_message);
-        this.close_object({ message: msg, local: true });
+        await this.conn.send(Protocol.buildCloseMsg(this.id, msg.code, reason));
+        this.closeInterface({ message: msg, local: true });
     }
 
     public terminate(): void {
         // Notice that we aren't waiting.
-        this.conn.send(compose(this.head.concat(Protocol.END_OF_TRANSMISSION)));
-        this.close_object({ message: Interfaces.TERMINATED_MESSAGE, local: true });
+        this.conn.send(Protocol.buildEmptyCloseMsg(this.id));
+        this.closeInterface({ message: Interfaces.TERMINATED_MESSAGE, local: true });
     }
 
     /** Update this and fire closed event. */
-    private close_object(ev: Interfaces.CloseEvent) {
+    private closeInterface(ev: Interfaces.CloseEvent) {
         this.isClosed = true;
-        this.closed.emit(ev);
+        this.closed.resolve(ev);
         return;
-    }
-
-    /** Checks the header and decides if this is a message for us. */
-    private is_message(view: DataView) {
-        return view.getUint16(0) == Protocol.MAGIC_WORD && view.getUint16(2) == this.id;
-    }
-
-    /** Writes a header for this channel. */
-    private write_head(view: DataView) {
-        view.setUint16(0, Protocol.MAGIC_WORD);
-        view.setUint16(2, this.id);
-    }
-
-    /** Header for this channel (for use with compose()).*/
-    private get head() {
-        return [Protocol.MAGIC_WORD, this.id];
     }
 }

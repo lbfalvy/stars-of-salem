@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "outDir": "./dist/",
-    "lib": [ "es6", "DOM" ],
-    "target": "es5",
+    "lib": [ "es2018", "DOM" ],
+    "target": "es2018",
     "allowSyntheticDefaultImports" : true,
     "esModuleInterop" : true,
     "allowJs": false,
@@ -15,6 +15,7 @@
     "noUnusedParameters": false,
     "moduleResolution": "node",
     "skipLibCheck": true,
-    "typeRoots": ["./custom_types"]
+    "typeRoots": ["./custom_types"],
+    "types": ["node", "jasmine"]
   }
 }

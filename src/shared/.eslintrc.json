@@ -8,6 +8,8 @@
     },
     "env": {
         "shared-node-browser": true,
-        "es6": true
+        "node": false,
+        "browser": false,
+        "es2017": true
     }
 }

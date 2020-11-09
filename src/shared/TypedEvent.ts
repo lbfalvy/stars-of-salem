@@ -4,52 +4,77 @@ export interface Disposable {
     dispose(): void;
 }
 
+export interface TypedEventSource<T> {
+    on(listener:Listener<T>):Disposable;
+    readonly next:Promise<T>;
+    pipe<K>(te:TypedEvent<K>, transform: (x:T) => K):Disposable;
+    pipeRaw(te:TypedEvent<T>):Disposable;
+}
+
 /** passes through events as they happen. You will not get events from before you start listening */
-export class TypedEvent<T> {
-    private listeners: Listener<T>[] = [];
+export class TypedEvent<T> implements TypedEventSource<T> {
+    private readonly listeners: Listener<T>[] = [];
     private listenersOncer: Listener<T>[] = [];
 
     public on(listener: Listener<T>): Disposable {
         this.listeners.push(listener);
         return {
-            dispose: () => this.off(listener)
+            dispose: () => {
+                const callbackIndex = this.listeners.indexOf(listener);
+                if (callbackIndex > -1) {
+                    this.listeners.splice(callbackIndex, 1);
+                }
+            }
         };
     }
 
-    public once(listener: Listener<T>): void {
-        this.listenersOncer.push(listener);
-    }
-
-    public wait(): Promise<T> {
+    public get next(): Promise<T> {
         return new Promise(res => {
-            this.once(ev => res(ev));
+            this.listenersOncer.push(ev => res(ev));
         });
     }
 
-    public off(listener: Listener<T>): void {
-        const callbackIndex = this.listeners.indexOf(listener);
-        if (callbackIndex > -1) {
-            this.listeners.splice(callbackIndex, 1);
-        }
+    private runHandler(listener:Listener<T>, event:T) {
+        listener(event);
     }
 
     public emit(event: T): void {
-        /** Update any general listeners */
-        this.listeners.forEach((listener) => listener(event));
+        // Collective delay to prevent unpredictable function runtimes.
+        queueMicrotask(() => {
+            /** Update any general listeners */
+            this.listeners.forEach((listener) => this.runHandler(listener, event));
 
-        /** Clear the `once` queue */
-        if (this.listenersOncer.length > 0) {
-            const toCall = this.listenersOncer;
-            this.listenersOncer = [];
-            toCall.forEach((listener) => listener(event));
-        }
+            /** Clear the `once` queue */
+            if (this.listenersOncer.length > 0) {
+                const toCall = this.listenersOncer;
+                this.listenersOncer = [];
+                toCall.forEach((listener) => this.runHandler(listener, event));
+            }
+        });
     }
 
-    public pipe_raw(te: TypedEvent<T>): Disposable {
+    public pipeRaw(te: TypedEvent<T>): Disposable {
         return this.on((e) => te.emit(e));
     }
 
     public pipe<K>(te: TypedEvent<K>, transform: (x: T) => K): Disposable {
         return this.on((e) => te.emit(transform(e)));
     }
+}
+
+// The following appears in this file because it's mainly used to represent events
+// that happen only once.
+
+export type ManualPromise<T> = Promise<T> & { 
+    resolve: (arg:T) => void
+    reject: (arg:any) => void
+};
+export function exposeResolve<T>():ManualPromise<T> {
+    let res!:(arg:T)=>void;
+    let rej!:(arg:any)=>void;
+    const p = new Promise<T>((resolve, reject) => {
+        res = resolve;
+        rej = reject;
+    });
+    return Object.assign(p, {resolve:res, reject:rej});
 }

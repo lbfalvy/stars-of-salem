@@ -1,10 +1,10 @@
 import * as Interfaces from '../shared/connection/Interfaces';
-import { TypedEvent } from '../shared/TypedEvent';
+import { exposeResolve, TypedEvent } from '../shared/TypedEvent';
 
 export class WsWrapper implements Interfaces.Connection {
     private ws:WebSocket;
-    public message = new TypedEvent<Interfaces.MessageEvent>();
-    public closed = new TypedEvent<Interfaces.CloseEvent>();
+    public message = new TypedEvent<Interfaces.Data>();
+    public closed = exposeResolve<Interfaces.CloseEvent>();
     public isClosed:boolean;
 
     public constructor( ws:WebSocket ) {
@@ -14,7 +14,7 @@ export class WsWrapper implements Interfaces.Connection {
         ws.onmessage = ev => {
             // Will always be true, this is just to please typescript
             if ( typeof ev.data == 'string' || ev.data instanceof ArrayBuffer ) {
-                this.message.emit({ data: ev.data });
+                this.message.emit(ev.data);
             }
         };
         ws.onclose = ev => {
@@ -22,7 +22,7 @@ export class WsWrapper implements Interfaces.Connection {
                 return;
             }
             this.isClosed = true;
-            this.closed.emit({
+            this.closed.resolve({
                 message: { code: ev.code, reason: ev.reason },
                 local: false
             });
@@ -44,13 +44,13 @@ export class WsWrapper implements Interfaces.Connection {
         }
         this.isClosed = true;
         this.ws.close( msg.code, msg.reason );
-        this.closed.emit({ message: msg, local: true });
+        this.closed.resolve({ message: msg, local: true });
         return;
     }
 
     public terminate():void {
         this.isClosed = true;
         this.ws.close();
-        this.closed.emit({ message: Interfaces.TERMINATED_MESSAGE, local: true });
+        this.closed.resolve({ message: Interfaces.TERMINATED_MESSAGE, local: true });
     }
 }

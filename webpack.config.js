@@ -29,7 +29,7 @@ common_config = {
               presets: ['@babel/preset-typescript']
             }
           },
-          'ts-loader',
+          'ts-loader'
         ]
       },
       {

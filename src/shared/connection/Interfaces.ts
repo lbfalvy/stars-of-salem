@@ -1,10 +1,6 @@
-import { TypedEvent } from '../TypedEvent';
+import { TypedEventSource } from '../TypedEvent';
 
 export type Data = string|ArrayBuffer;
-
-export interface MessageEvent {
-    data:Data;
-}
 
 export interface CloseEvent {
     message:CloseMessage,
@@ -30,12 +26,10 @@ export class ProtocolError extends Error {
     }
 }
 
-export const ProtocolMessage:CloseMessage = {
-    code: 3405,
-    reason: 'The other peer broke the protocol'
-};
-
-export const TERMINATED_MESSAGE:CloseMessage = { code: -2, reason: 'terminated' };
+export const RESERVED_CODE_RANGE = 100;
+export const PROTOCOL_MESSAGE:CloseMessage = { code: 1, reason: 'protocol violation' };
+export const TERMINATED_MESSAGE:CloseMessage = { code: 0, reason: 'terminated' };
+export const TIMEOUT_MESSAGE:CloseMessage = { code: 2, reason: 'timeout' };
 
 /**
  * Disambiguation:
@@ -44,8 +38,8 @@ export const TERMINATED_MESSAGE:CloseMessage = { code: -2, reason: 'terminated' 
  *  if message doesn't arrive, send() will fail.
  */
 export interface Connection {
-    readonly message:TypedEvent<MessageEvent>;
-    readonly closed:TypedEvent<CloseEvent>;
+    readonly message:TypedEventSource<Data>;
+    readonly closed:Promise<CloseEvent>;
     readonly isClosed:boolean;
 
     send( data:Data ):Promise<void>|never;
@@ -54,6 +48,6 @@ export interface Connection {
 }
 
 export interface ConnectionTarget {
-    readonly connection:TypedEvent<Connection>;
+    readonly connection:TypedEventSource<Connection>;
     readonly clients:Set<Connection>;
 }

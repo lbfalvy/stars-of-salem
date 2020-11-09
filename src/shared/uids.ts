@@ -1,14 +1,14 @@
 let uid_counter = 0;
 let salt = "";
 export type HashFunction = ( input:string )=>string;
-let hash:HashFunction;
-export function set_seed( seed:number ):void {
+let hash:HashFunction | undefined;
+export function setSeed( seed:number ):void {
     salt = seed.toString();
 }
-export function set_hash_func( func:HashFunction ):void {
+export function setHashFunc( func:HashFunction ):void {
     hash = func;
 }
-export function get_uid():string {
+export function getUid():string {
     if (salt == "") {
         throw new Error( "Please seed the UID generator before using it!" );
     }

@@ -1,6 +1,6 @@
 import WebSocket from "ws";
-import { buffer_to_arraybuffer, buffer_array_to_arraybuffer } from "../shared/arrayBuffer";
-import { TypedEvent } from "../shared/TypedEvent";
+import { bufferToArrayBuffer, bufferArrayToArrayBuffer } from "../shared/arrayBuffer";
+import { exposeResolve, TypedEvent } from "../shared/TypedEvent";
 import * as Interfaces from "../shared/connection/Interfaces";
 
 /**
@@ -9,8 +9,8 @@ import * as Interfaces from "../shared/connection/Interfaces";
 
 export class Connection implements Interfaces.Connection {
     private ws: WebSocket;
-    public readonly message = new TypedEvent<Interfaces.MessageEvent>();
-    public readonly closed = new TypedEvent<Interfaces.CloseEvent>();
+    public readonly message = new TypedEvent<Interfaces.Data>();
+    public readonly closed = exposeResolve<Interfaces.CloseEvent>();
     private _isClosed = false;
     public get isClosed():boolean {
         return this._isClosed;
@@ -25,13 +25,13 @@ export class Connection implements Interfaces.Connection {
         this.ws.onmessage = ev => { // Convert the message and emit an event
             let data: ArrayBuffer | string;
             if (ev.data instanceof Array) { // handle Buffer[]
-                data = buffer_array_to_arraybuffer(ev.data);
+                data = bufferArrayToArrayBuffer(ev.data);
             } else if (ev.data instanceof Buffer) { // handle Buffer
-                data = buffer_to_arraybuffer(ev.data);
+                data = bufferToArrayBuffer(ev.data);
             } else { // string|ArrayBuffer is fine as is
                 data = ev.data;
             }
-            this.message.emit({ data });
+            this.message.emit(data);
         };
         this.ws.onclose = ev => {
             clearInterval(check); // end ping
@@ -41,8 +41,8 @@ export class Connection implements Interfaces.Connection {
             }
             this.isClosed = true;
 
-            this.closed.emit({
-                message: { code: ev.code, reason: ev.reason },
+            this.closed.resolve({
+                message: { code: ev.code-3000, reason: ev.reason },
                 local: false
             });
         };
@@ -51,7 +51,7 @@ export class Connection implements Interfaces.Connection {
         const check = setInterval(() => {
             if (!isAlive) {
                 this.terminate();
-                this.closed.emit({
+                this.closed.resolve({
                     message: { code: -1, reason: 'timeout' }, local: false
                 });
                 return;
@@ -77,15 +77,15 @@ export class Connection implements Interfaces.Connection {
             throw new Interfaces.ConnectionClosedError();
         }
         this.isClosed = true;
-        this.ws.close(message.code, message.reason);
-        this.closed.emit({ message, local: true });
+        this.ws.close(3000+message.code, message.reason);
+        this.closed.resolve({ message, local: true });
         return;
     }
 
     public terminate(): void {
         this.isClosed = true;
         this.ws.terminate();
-        this.closed.emit({ message: Interfaces.TERMINATED_MESSAGE, local: true });             
+        this.closed.resolve({ message: Interfaces.TERMINATED_MESSAGE, local: true });             
     }
 }
 
@@ -99,7 +99,7 @@ export class Server implements Interfaces.ConnectionTarget {
         wss.on("connection", ws => {
             const conn = new Connection(ws, timeout);
             this.clients.add(conn);
-            conn.closed.once(() => this.clients.delete(conn));
+            conn.closed.then(() => this.clients.delete(conn));
             this.connection.emit(conn);
         });
     }

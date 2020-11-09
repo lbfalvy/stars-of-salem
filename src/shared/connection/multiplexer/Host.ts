@@ -1,4 +1,3 @@
-import { compose } from '../../arrayBuffer';
 import { TypedEvent } from '../../TypedEvent';
 import * as Interfaces from '../Interfaces';
 import * as Protocol from './Protocol';
@@ -6,17 +5,17 @@ import * as Protocol from './Protocol';
 export type ChannelFactory = (conn: Interfaces.Connection, id: number) => Interfaces.Connection;
 
 export interface Dependencies {
-    channel_factory: ChannelFactory,
+    channelFactory: ChannelFactory,
 }
 
 export class Host implements Interfaces.ConnectionTarget, Interfaces.Connection {
     private readonly conn: Interfaces.Connection
     private readonly injected: Dependencies;
     private readonly channels = new Map<number, Interfaces.Connection>();
-    private next_id = 0;
+    private nextId = 0;
     public readonly connection = new TypedEvent<Interfaces.Connection>();
-    public readonly message = new TypedEvent<Interfaces.MessageEvent>();
-    public readonly closed: TypedEvent<Interfaces.CloseEvent>;
+    public readonly message = new TypedEvent<Interfaces.Data>();
+    public readonly closed: Promise<Interfaces.CloseEvent>;
 
     public get isClosed(): boolean {
         return this.conn.isClosed;
@@ -28,115 +27,95 @@ export class Host implements Interfaces.ConnectionTarget, Interfaces.Connection 
     public constructor(conn: Interfaces.Connection, injected: Dependencies) {
         this.injected = injected;
         this.conn = conn;
-        this.send = conn.send;
-        this.close = conn.close;
-        this.terminate = conn.terminate;
         this.closed = conn.closed;
-        conn.message.on(ev => {
+        conn.message.on(msg => {
             // If it's a string, it's definitely in default
-            if (typeof ev.data == 'string') {
-                return this.message.emit(ev);
+            if (typeof msg == 'string') {
+                return this.message.emit(msg);
             }
-            const data = new DataView(ev.data);
+            const data = new DataView(msg);
             // If it doesn't start with the protocol word, it also belongs in default.
-            if (data.getUint16(0) != Protocol.MAGIC_WORD) {
-                return this.message.emit(ev);
+            if (!Protocol.isRelevant(data)) {
+                return this.message.emit(msg);
             }
             // We only need to handle it here if it's addressed to us and it's a create packet
-            if (data.getUint16(2) == Protocol.CONTROL_PACKET &&
-                data.getUint16(4) == Protocol.CREATE_CHANNEL) {
-                let body: Array<number>;
-                try {
-                    this.connection.emit(this.receive_channel(data.getUint16(6)));
-                    body = [Protocol.APPROVED, data.getUint16(6)];
-                } catch (e) {
-                    body = [Protocol.REJECTED, data.getUint16(6)];
-                }
-                this.conn.send(compose(Protocol.CONTROL_HEADER.concat(body)));
+            if (Protocol.isCreateChannel(data)) {
+                this.receiveChannel(data);
             }
         });
     }
 
-    public create_channel(id?: number): Promise<Interfaces.Connection> {
-        let id_:number;
-        try { // Ensure that we don't throw by accident.
-            // Ensure ID is a valid id number (at least for us)
-            if (!id) {
-                id = this.get_next_id();
-            }
-            // convince typescript that the local doesn't get unset when callbacks run.
-            id_ = id; 
-            if (0xfffe < id || id < 0) { // Must be a word and not 0xfff (gateway address)
-                throw new RangeError(
-                    'Channel ids can only be uint16 values below 0xffff'
-                );
-            }
-            this.assert_unique_id(id);
-            // Tell the other half about the new channel
-            this.conn.send(compose(Protocol.CONTROL_HEADER.concat(Protocol.CREATE_CHANNEL, id)));
-        } catch(ex) {
-            return Promise.reject(ex);
+    public async createChannel(id?: number): Promise<Interfaces.Connection> {
+        // Ensure ID is a valid id number (at least for us)
+        if (id === undefined) {
+            id = this.getNextId();
         }
-        return new Promise((res, rej) => {
-            // Set up a temporary message handler
-            const disp = this.conn.message.on(ev => {
-                // discard all strings
-                if (typeof ev.data == 'string') {
-                    return;
-                }
-                const view = new DataView(ev.data);
-                // Only proceed if it's a control packet addressed to us
-                if (!this.is_control_packet(view) || view.getUint16(6) != id_) {
-                    return;
-                }
-                // Get rid of the handler
-                disp.dispose();
-                if (view.getUint16(4) == Protocol.REJECTED) {
-                    rej(new RangeError('Channel id already in use')); // Async throw
-                } else {
-                    const chan = this.injected.channel_factory(this.conn, id_);
-                    this.channels.set(id_, chan);
-                    chan.closed.on(() => this.channels.delete(id_));
-                    res(chan); // async resolve
-                }
-            });
-        });
-    }
-
-    public send: (msg: Interfaces.Data) => Promise<void> | never;
-    public close: (msg: Interfaces.CloseMessage) => Promise<void> | never;
-    public terminate: () => void;
-
-    private get_next_id() {
-        const last = this.next_id;
-        do {
-            this.next_id = this.next_id + 1 % 0xfffe;
-            if (!this.channels.has(this.next_id)) {
-                const final = this.next_id;
-                this.next_id = this.next_id + 1 % 0xfffe;
-                return final;
-            }
-        } while (this.next_id != last);
-        throw new RangeError('Out of session slots.');
-        // A websocket couldn't handle more than 65534 different channels
-    }
-
-    private receive_channel(id: number): Interfaces.Connection {
-        this.assert_unique_id(id);
-        const chan = this.injected.channel_factory(this.conn, id);
-        this.channels.set(id, chan);
-        chan.closed.once(() => this.channels.delete(id));
-        return chan;
-    }
-
-    private assert_unique_id(id: number) {
+        // convince typescript that the local doesn't get unset when callbacks run.
+        const id_ = id;
+        if (0xfffe < id || id < 0) { // Must be a word and not 0xfff (gateway address)
+            throw new RangeError(
+                'Channel ids can only be uint16 values below 0xffff'
+            );
+        }
         if (this.channels.has(id)) {
+            throw new RangeError('Channel id already in use');
+        }
+        // Tell the other half about the new channel
+        this.conn.send(Protocol.buildCreateChannel(id));
+        // Discard messages until one is a channel reply
+        let view:DataView;
+        do {
+            let msg:Interfaces.Data;
+            do {
+                msg = await this.conn.message.next; // Get a new message
+            } while (typeof msg == 'string'); // If it's string, repeat
+            view = new DataView(msg); // interpret as ArrayBuffer
+        } while (!Protocol.isChannelReplyFor(id_, view)); // If it isn't a channel reply, repeat
+
+        if (Protocol.isChannelReplyAccepted(view)) {
+            const chan = this.injected.channelFactory(this.conn, id_);
+            this.channels.set(id_, chan);
+            chan.closed.then(() => this.channels.delete(id_));
+            return chan;
+        } else {
             throw new RangeError('Channel id already in use');
         }
     }
 
-    private is_control_packet(view: DataView) {
-        return (view.getUint16(0) == Protocol.MAGIC_WORD &&
-            view.getUint16(2) == Protocol.CONTROL_PACKET);
+    public send(msg: Interfaces.Data):Promise<void> | never {
+        return this.conn.send(msg);
+    }
+    public close(msg: Interfaces.CloseMessage):Promise<void> | never {
+        return this.conn.close(msg);
+    }
+    public terminate(): void {
+        return this.conn.terminate();
+    }
+
+    private getNextId(): number {
+        const last = this.nextId;
+        do {
+            this.nextId = this.nextId + 1 % 0xfffe;
+            if (!this.channels.has(this.nextId)) {
+                const final = this.nextId;
+                this.nextId = this.nextId + 1 % 0xfffe;
+                return final;
+            }
+        } while (this.nextId != last);
+        throw new RangeError('Out of session slots.');
+        // More than 65534 different channels
+    }
+
+    private receiveChannel(view: DataView): void {
+        const id = Protocol.getCreateChannelId(view);
+        if (this.channels.has(id)) {
+            this.conn.send(Protocol.buildChannelReply(false, id));
+            return;
+        }
+        const chan = this.injected.channelFactory(this.conn, id);
+        this.channels.set(id, chan);
+        chan.closed.then(() => this.channels.delete(id));
+        this.conn.send(Protocol.buildChannelReply(true, id));
+        this.connection.emit(chan);
     }
 }

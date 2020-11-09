@@ -4,54 +4,53 @@ import * as Protocol from './Protocol';
 import * as Session from './Session';
 
 export interface ServerOptions {
-    session_timeout?: number,
-    socket_timeout?: number
+    sessionTimeout?: number,
+    socketTimeout?: number
 }
 
 export type ConnectionWrapper = 
     (conn: Interfaces.Connection, resuming: boolean) => Interfaces.Connection;
-export type SessionFactory = (conn: Interfaces.Connection) => Session.ISession
-export type KeyGenerator = () => string;
 export interface ServerDependencies {
-    session_factory: SessionFactory,
-    conn_wrapper?: ConnectionWrapper,
-    get_key: KeyGenerator
+    sessionFactory(conn: Interfaces.Connection): Session.ISession,
+    connWrapper?: ConnectionWrapper,
+    getKey(): string
 }
 
 export class Server implements Interfaces.ConnectionTarget {
-    private session_store = new Map<Protocol.Key, Session.ISession>(); 
-    public connection = new TypedEvent<Interfaces.Connection>();
+
+    private sessionStore = new Map<Protocol.Key, Session.ISession>(); 
+    public readonly connection = new TypedEvent<Interfaces.Connection>();
 
     public constructor(server: Interfaces.ConnectionTarget, deps: ServerDependencies) {
-        const wrap_conn = deps.conn_wrapper || (c => c);
+        const wrap_conn = deps.connWrapper || (c => c);
         server.connection.on(async conn => {
-            conn.closed.on(ev => console.debug('Client disconnected:', ev));
-            conn.message.on(ev => console.debug('Client sent:', ev));
-            const key = await conn.message.wait();
-            if (typeof key.data !== 'string') {
+            //conn.closed.then(ev => console.debug('Client disconnected:', ev));
+            //conn.message.on(ev => console.debug('Client sent:', ev));
+            const key = await conn.message.next;
+            if (typeof key !== 'string') {
                 // Protocol mismatch, presumably
                 conn.close(Protocol.messages.noHandshake);
-                console.warn('Unknown message, expected string.', key.data);
-            } else if (key.data === '') {
+                console.warn('Unknown message, expected string.', key);
+            } else if (key === '') {
                 // Generate a new session key and send it to the other end
-                const id: Protocol.Key = deps.get_key();
+                const id: Protocol.Key = deps.getKey();
                 try {
                     await conn.send(id);
                 } catch(e) {
-                    console.debug('Couldn\'t send key;', e);
+                    console.info('Couldn\'t send key;', e);
                     return conn.terminate();
                 }
                 // Create session and save it
-                const session = deps.session_factory(wrap_conn(conn, false));
-                this.session_store.set(id, session);
+                const session = deps.sessionFactory(wrap_conn(conn, false));
+                this.sessionStore.set(id, session);
                 // eventually delete the session once it's closed
-                session.closed.once(() => this.session_store.delete(id));
+                session.closed.then(() => this.sessionStore.delete(id));
                 // notify everyone that we have a new session
                 this.connection.emit(session);
             } else {
-                const session = this.session_store.get(key.data);
+                const session = this.sessionStore.get(key);
                 if (session) {
-                    session.connection = wrap_conn(conn, true);
+                    session.onReconnect(wrap_conn(conn, true));
                 } else {
                     conn.close(Protocol.messages.invalidSession);
                 }
@@ -60,6 +59,6 @@ export class Server implements Interfaces.ConnectionTarget {
     }
 
     public get clients(): Set<Session.ISession> {
-        return new Set(this.session_store.values());
+        return new Set(this.sessionStore.values());
     }
 }
