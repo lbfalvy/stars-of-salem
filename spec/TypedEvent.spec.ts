@@ -10,7 +10,17 @@ describe('A typed event object', function() {
         await ev.next;
         expect(result).toBe(14);
     });
-
+    it('should stop calling handlers after dispose()', async function() {
+        const ev = new TypedEvent<void>();
+        let result = 0;
+        const d = ev.on(() => result++);
+        ev.emit();
+        await new Promise(res => setTimeout(res, 100)); // queue flush
+        d.dispose();
+        ev.emit();
+        await new Promise(res => setTimeout(res, 100)); // queue flush
+        expect(result).toBe(1);
+    });
     it('should call all handlers', async function() {
         const ev = new TypedEvent<void>();
         let callcnt = 0;
