@@ -34,7 +34,7 @@ function main() {
         });
         const _commands = await mux.createChannel();
         const _voice = await mux.createChannel();
-        
+        _voice.message.on(data => _voice.send(data));
     });
 }
 

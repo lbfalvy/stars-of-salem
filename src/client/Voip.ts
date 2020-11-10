@@ -1,23 +1,8 @@
+//import { MediaRecorder, IMediaRecorder } from "extendable-media-recorder";
+import RawMediaRecorder from "raw-media-recorder";
+import { copyArrayBuffer } from "../shared/arrayBuffer";
 import { TypedEvent } from "../shared/TypedEvent";
-import { 
-    AudioContext,
-    addAudioWorkletModule,
-    AudioWorkletNode,
-    IAudioBuffer,
-    AudioBufferSourceNode,
-} from 'standardized-audio-context';
-import { 
-    addRecorderAudioWorkletModule, 
-    createRecorderAudioWorkletNode, 
-    IRecorderAudioWorkletNode
-} from 'recorder-audio-worklet';
-
-function asyncGetUserMedia(constraints:MediaStreamConstraints):Promise<MediaStream> {
-    return new Promise((resolve, reject) => navigator.getUserMedia(constraints, resolve, reject));
-}
-function asyncDecodeData(context:AudioContext, buf:ArrayBuffer):Promise<IAudioBuffer> {
-    return new Promise((resolve, reject) => context.decodeAudioData(buf, resolve, reject));
-}
+import NoiseGateNode from 'noise-gate';
 
 /**
  * Two way audio stream
@@ -40,82 +25,67 @@ export class DuplexAudio {
         return this.context.state == 'suspended';
     }
     public currentlyPlaying = false;
-    public readonly gotFrame = new TypedEvent<Float32Array>();
-    public readonly source: AudioBufferSourceNode<AudioContext>;
+    public readonly gotFrame = new TypedEvent<ArrayBuffer>();
+    public readonly processor: ScriptProcessorNode;
 
-    private backbuffer: IAudioBuffer | undefined;
+    private readonly backbuffer = new Array<ArrayBuffer>();
+    private static readonly bufferSize = 8192;
 
-    private constructor(private readonly context: AudioContext,
-                        private readonly recNode: IRecorderAudioWorkletNode<AudioContext>,
-                        private readonly stream: MediaStream) { // mic
-        this.source = context.createBufferSource();
-        this.source.connect(context.destination);
-        const playback = context.createMediaStreamSource(stream);
-        playback.connect(recNode);
+    private constructor(private readonly context: AudioContext, stream: MediaStream) {
+        /*this.recorder = new RawMediaRecorder(context, 1024);
+        this.recorder.ondata = async (buf:AudioBuffer) => {
+            const floats = buf.getChannelData(0);
+            const new_ab = new ArrayBuffer(floats.byteLength);
+            copyArrayBuffer(floats.buffer, floats.byteOffset, floats.byteLength, new_ab, 0);
+            this.gotFrame.emit(new_ab);
+        };*/
+        const src = context.createMediaStreamSource(stream);
+        this.processor = context.createScriptProcessor(DuplexAudio.bufferSize, 1, 1);
+        this.processor.addEventListener('audioprocess', ev => {
+            const floats = ev.inputBuffer.getChannelData(0);
+            //const new_ab = new ArrayBuffer(floats.byteLength);
+            //copyArrayBuffer(floats.buffer, floats.byteOffset, floats.byteLength, new_ab, 0);
+            this.gotFrame.emit(floats.buffer.slice(floats.byteOffset, 
+                                                   floats.byteOffset + floats.byteLength));
+            const buf = this.backbuffer.pop();
+            if (buf) {
+                ev.outputBuffer.copyToChannel(new Float32Array(buf), 0, 0);
+            }
+        });
+        /*const filter = this.context.createBiquadFilter();
+        src.connect(filter);
+        filter.type = 'highpass';
+        filter.frequency.value = 100;
+        const filter2 = this.context.createBiquadFilter();
+        filter2.type = 'lowpass';
+        filter2.frequency.value = 480;
+        filter.connect(filter2);
+        filter2.connect(this.processor);*/
+        const gate = new NoiseGateNode(context);
+        src.connect(gate);
+        gate.connect(this.processor);
+        this.processor.connect(this.context.destination);
+        this.startDataCallbacks();
+    }
+
+    public startDataCallbacks():void {
+        this.context.resume();
+    }
+
+    public stopDataCallbacks():void {
+        this.context.suspend();
     }
 
     public async playBuffer(value:ArrayBuffer):Promise<void> {
-        const buf = await asyncDecodeData(this.context, value);
-        this.backbuffer = buf; // Play this next
-        if (!this.currentlyPlaying) {
-            this.processBackbuffer();
-        } 
-    }
-
-    private processBackbuffer() {
-        const next = this.backbuffer;
-        if (next == undefined) {
-            this.currentlyPlaying = false;
-            return;
-        }
-        this.currentlyPlaying = true;
-        this.source.buffer = next;
-        this.source.start();
-        this.source.onended = () => {
-            this.processBackbuffer();
-        };
-    }
-
-    public async suspend():Promise<void> {
-        if(this.running) {
-            await this.context.suspend();
-        }
-    }
-
-    public async resume():Promise<void> {
-        if (this.suspended) {
-            await this.context.resume();
-        }
-    }
-
-    public async close():Promise<void> {
-        if (!this.closed) {
-            await this.suspend();
-            this.recNode.stop();
-            await this.context.close();
-        }
+        this.backbuffer.unshift(value);
     }
 
     public static async create():Promise<DuplexAudio> {
-        // Check all dependencies
-        if (!AudioWorkletNode || !addAudioWorkletModule) {
-            throw new ReferenceError('audio worklets are unsupported in this browser');
-        }
         // Create common deps
         const context = new AudioContext();
-        // Create recorder
-        await addRecorderAudioWorkletModule((url) => {
-            if (addAudioWorkletModule === undefined) {
-                throw 0; // Will never happen because we check above
-            }
-            return addAudioWorkletModule(context, url);
-        });
-        const stream = await asyncGetUserMedia({ audio: true });
-        const recorder_node = await createRecorderAudioWorkletNode(AudioWorkletNode, context);
-        const duplex = new DuplexAudio(context, recorder_node, stream);
-        const record_channel = new MessageChannel();
-        await duplex.recNode.record(record_channel.port1);
-        record_channel.port2.onmessage = ev => duplex.gotFrame.emit(ev.data as Float32Array);
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const duplex = new DuplexAudio(context, stream);
+        
         return duplex;
     }
 }
