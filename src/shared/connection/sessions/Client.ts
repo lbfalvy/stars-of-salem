@@ -19,7 +19,10 @@ export class Client implements Interfaces.Connection {
         this.ready.then(() => this.isReady = true);
         this.brokenPipe.on(() => this.isReady = false);
         this.resuming.on(() => this.isReady = true);
-        this.closed.then(() => this.isReady = false);
+        this.closed.then(() => {
+            this.ready.reject(new Error('The connection had been closed by the server'));
+            this.isReady = false;
+        });
         this.setupConnection();
     }
 
