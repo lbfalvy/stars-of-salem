@@ -13,7 +13,7 @@ export type ConnectionWrapper =
 export interface ServerDependencies {
     sessionFactory(conn: Interfaces.Connection): Session.ISession,
     connWrapper?: ConnectionWrapper,
-    getKey(): string
+    getUid(): string
 }
 
 export class Server implements Interfaces.ConnectionTarget {
@@ -33,7 +33,7 @@ export class Server implements Interfaces.ConnectionTarget {
                 console.warn('Unknown message, expected string.', key);
             } else if (key === '') {
                 // Generate a new session key and send it to the other end
-                const id: Protocol.Key = deps.getKey();
+                const id: Protocol.Key = deps.getUid();
                 try {
                     await conn.send(id);
                 } catch(e) {

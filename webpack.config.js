@@ -16,6 +16,9 @@ common_config = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js']
   },
+  performance: {
+    hints: false
+  },
   module: {
     rules: [
       {
@@ -58,6 +61,13 @@ client_config = {
     hot: true,
     hotOnly: true,
     injectHot: true,
+    proxy: {
+      '/api': {
+        target: 'ws://localhost:3000',
+        ws: true,
+        secure: false
+      }
+    }
   },
   // Build target
   entry: {

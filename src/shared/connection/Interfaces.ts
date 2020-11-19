@@ -27,6 +27,7 @@ export class ProtocolError extends Error {
 }
 
 export const RESERVED_CODE_RANGE = 100;
+export const PROTOCOL_CODE_RANGE = 200;
 export const PROTOCOL_MESSAGE:CloseMessage = { code: 1, reason: 'protocol violation' };
 export const TERMINATED_MESSAGE:CloseMessage = { code: 0, reason: 'terminated' };
 export const TIMEOUT_MESSAGE:CloseMessage = { code: 2, reason: 'timeout' };

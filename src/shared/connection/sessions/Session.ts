@@ -112,7 +112,6 @@ export class Session implements ISession {
     }
 
     private handleBrokenPipe(msg:Interfaces.CloseMessage) {
-        console.log('Broken pipe detected sside');
         this.brokenPipe.emit(msg); // Notify
         this.connection = undefined;
         // After `timeout` ms, unless cleared, notify that the session was closed.

@@ -65,11 +65,11 @@ export class TypedEvent<T> implements TypedEventSource<T> {
 // The following appears in this file because it's mainly used to represent events
 // that happen only once.
 
-export type ManualPromise<T> = Promise<T> & { 
+export type ExposedPromise<T> = Promise<T> & { 
     resolve: (arg:T) => void
     reject: (arg:any) => void
 };
-export function exposeResolve<T>():ManualPromise<T> {
+export function exposeResolve<T>():ExposedPromise<T> {
     let res!:(arg:T)=>void;
     let rej!:(arg:any)=>void;
     const p = new Promise<T>((resolve, reject) => {
@@ -77,4 +77,7 @@ export function exposeResolve<T>():ManualPromise<T> {
         rej = reject;
     });
     return Object.assign(p, {resolve:res, reject:rej});
+}
+export function isExposed<T>(p:Promise<T>): p is ExposedPromise<T> {
+    return 'resolve' in p;
 }

@@ -1,20 +1,7 @@
-//import { MediaRecorder, IMediaRecorder } from "extendable-media-recorder";
-import RawMediaRecorder from "raw-media-recorder";
-import { copyArrayBuffer } from "../shared/arrayBuffer";
 import { TypedEvent } from "../shared/TypedEvent";
 import NoiseGateNode from 'noise-gate';
 
-/**
- * Two way audio stream
- * - engage stream
- * - retrieve messageport
- * - set playback cb
- * - pause stream
- * - resume stream
- * - stop stream
- */
-
-export class DuplexAudio {
+export default class AudIO {
     public get running():boolean {
         return this.context.state == 'running';
     }
@@ -29,22 +16,13 @@ export class DuplexAudio {
     public readonly processor: ScriptProcessorNode;
 
     private readonly backbuffer = new Array<ArrayBuffer>();
-    private static readonly bufferSize = 8192;
 
-    private constructor(private readonly context: AudioContext, stream: MediaStream) {
-        /*this.recorder = new RawMediaRecorder(context, 1024);
-        this.recorder.ondata = async (buf:AudioBuffer) => {
-            const floats = buf.getChannelData(0);
-            const new_ab = new ArrayBuffer(floats.byteLength);
-            copyArrayBuffer(floats.buffer, floats.byteOffset, floats.byteLength, new_ab, 0);
-            this.gotFrame.emit(new_ab);
-        };*/
+    private constructor(private readonly context: AudioContext, stream: MediaStream, 
+                        private readonly bufferSize:number) {
         const src = context.createMediaStreamSource(stream);
-        this.processor = context.createScriptProcessor(DuplexAudio.bufferSize, 1, 1);
+        this.processor = context.createScriptProcessor(bufferSize, 1, 1);
         this.processor.addEventListener('audioprocess', ev => {
             const floats = ev.inputBuffer.getChannelData(0);
-            //const new_ab = new ArrayBuffer(floats.byteLength);
-            //copyArrayBuffer(floats.buffer, floats.byteOffset, floats.byteLength, new_ab, 0);
             this.gotFrame.emit(floats.buffer.slice(floats.byteOffset, 
                                                    floats.byteOffset + floats.byteLength));
             const buf = this.backbuffer.pop();
@@ -52,15 +30,6 @@ export class DuplexAudio {
                 ev.outputBuffer.copyToChannel(new Float32Array(buf), 0, 0);
             }
         });
-        /*const filter = this.context.createBiquadFilter();
-        src.connect(filter);
-        filter.type = 'highpass';
-        filter.frequency.value = 100;
-        const filter2 = this.context.createBiquadFilter();
-        filter2.type = 'lowpass';
-        filter2.frequency.value = 480;
-        filter.connect(filter2);
-        filter2.connect(this.processor);*/
         const gate = new NoiseGateNode(context);
         src.connect(gate);
         gate.connect(this.processor);
@@ -80,11 +49,11 @@ export class DuplexAudio {
         this.backbuffer.unshift(value);
     }
 
-    public static async create():Promise<DuplexAudio> {
+    public static async create(sampleRate:number, bufferSize:number):Promise<AudIO> {
         // Create common deps
-        const context = new AudioContext();
+        const context = new AudioContext({ sampleRate });
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const duplex = new DuplexAudio(context, stream);
+        const duplex = new AudIO(context, stream, bufferSize);
         
         return duplex;
     }

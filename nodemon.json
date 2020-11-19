@@ -3,6 +3,6 @@
         "src/server/**/*.ts",
         "src/shared/**/*.ts"
     ],
-    "exec": "node --inspect -r ts-node/register src/server/index.ts",
+    "exec": "node --inspect -r ts-node/register src/server/index.ts --port=3000",
     "ext": "ts,js,mjs,json"
 }

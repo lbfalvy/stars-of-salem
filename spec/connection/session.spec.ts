@@ -12,7 +12,7 @@ describe('Session', function () {
     beforeEach(async function() {
         mock_tgt = new Target();
         srv = new Ses.Server(mock_tgt, {
-            getKey: () => (i++).toString(16),
+            getUid: () => (i++).toString(16),
             sessionFactory: (conn) => new Ses.Session(conn)
         });
         srv.connection.next.then(c => session = c);
@@ -41,7 +41,7 @@ describe('Session', function () {
         const mock_tgt = new Target();
         let i = 0;
         const srv = new Ses.Server(mock_tgt, {
-            getKey: () => (i++).toString(),
+            getUid: () => (i++).toString(),
             sessionFactory: (conn) => new Ses.Session(conn)
         });
         let p = exposeResolve<Interfaces.Connection>();
@@ -113,7 +113,7 @@ describe('Session', function () {
         const mock_tgt = new Target();
         let i = 0;
         const srv = new Ses.Server(mock_tgt, {
-            getKey: () => (i++).toString(),
+            getUid: () => (i++).toString(),
             sessionFactory: (conn) => new Ses.Session(conn, {
                 takeover: false,
             })

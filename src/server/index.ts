@@ -1,41 +1,57 @@
+import path from 'path';
 import { TextDecoder, TextEncoder } from "util";
 import { createHash, randomBytes } from "crypto";
 import { Server as WsServer } from "ws";
 import * as  WsWrapper from './WsWrapper';
 import * as Interfaces from "../shared/connection/Interfaces";
-import * as Multiplexer from "../shared/connection/multiplexer";
+import * as Mux from "../shared/connection/multiplexer";
 import { getUid, setHashFunc, setSeed } from "../shared/uids";
 import { bufferToArrayBuffer } from "../shared/arrayBuffer";
 import * as Sessions from "../shared/connection/sessions";
+import Player from './GameElements/Player';
+import config from './config';
+import { start } from './game';
+import serveStatic from './StaticServer';
+import { ChannelFactory } from '../shared/connection/multiplexer/Host';
 
-function main() {
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder('utf-8');
-    setSeed(randomBytes(4).readInt32BE());
-    setHashFunc(input => createHash('sha256').update(input).digest('base64'));
-    const wss = new WsServer({ port: 3000 });
-    const wrapper = new WsWrapper.Server(wss, 1000); // Ping every second
-    const sessions = new Sessions.Server(wrapper, {
-        sessionFactory: conn => new Sessions.Session(conn, {
-            takeover: true,
-            timeout: 10_000, // Drop session after 10s of abscence.
-        }),
-        getKey: getUid
-    });
-    sessions.connection.on(async (conn: Interfaces.Connection) => {
-        console.log('connection ready');
-        const mux = new Multiplexer.Host.Host(conn, {
-            channelFactory: (conn, id) => new Multiplexer.Channel.Channel(conn, id, {
-                encode: (data: string) => bufferToArrayBuffer(encoder.encode(data)),
-                decode: (source: ArrayBuffer, offset?: number, length?: number) => {
-                    return decoder.decode(new Uint8Array(source, offset, length));
-                }
-            })
-        });
-        const _commands = await mux.createChannel();
-        const _voice = await mux.createChannel();
-        _voice.message.on(data => _voice.send(data));
-    });
-}
+// DI stuff
+const encoder = new TextEncoder();
+const decoder = new TextDecoder('utf-8');
+const encode = (data:string) => bufferToArrayBuffer(encoder.encode(data));
+const decode = (source:ArrayBuffer, offset?:number, length?:number) => {
+    return decoder.decode(new Uint8Array(source, offset, length));
+};
+const chan_deps = { encode, decode };
+const channelFactory:ChannelFactory = (conn, id) => new Mux.Channel.Channel(conn, id, chan_deps);
+const mux_deps = { channelFactory };
 
-main();
+// Initialize getUid
+setSeed(randomBytes(4).readInt32BE());
+setHashFunc(input => createHash('sha256').update(input).digest('base64'));
+
+const static_dir = path.join(process.cwd(), 'dist');
+const http_server = serveStatic(static_dir);
+const wss = new WsServer({ server: http_server });
+const wrapper = new WsWrapper.Server(wss, config.connectionTimeout);
+const sessions = new Sessions.Server(wrapper, {
+    sessionFactory: conn => new Sessions.Session(conn, {
+        takeover: true,
+        timeout: config.sessionTimeout,
+    }),
+    getUid
+});
+sessions.connection.on(async (conn: Interfaces.Connection) => {
+    console.log('Client connected');
+    const name = await conn.message.next;
+    if (name instanceof ArrayBuffer) {
+        throw new Error('got binary for initial config');
+    }
+    const mux = new Mux.Host.Host(conn, mux_deps);
+    console.log('Client identified as', name);
+    const player = new Player(mux, name, start);
+    await player.ready;
+    console.log('Player', name, 'arrived');
+});
+
+http_server.listen(config.port);
+console.log(`server listening on port ${config.port}`);
