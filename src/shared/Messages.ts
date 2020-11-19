@@ -20,7 +20,7 @@ export class Player extends Message {
     }
 }
 
-export class NewPosition extends Message { // to client
+export class Position extends Message { // to client
     public constructor(
         public readonly name: string,
         public readonly space: string,
@@ -29,7 +29,7 @@ export class NewPosition extends Message { // to client
         public readonly devices: Array<string>, // List of device ports for client
         public readonly users: Array<Player> // Players visible here
     ) {
-        super(NewPosition.name);
+        super(Position.name);
     }
 }
 

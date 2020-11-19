@@ -47,8 +47,8 @@ export default class Position {
         this.players.splice(idx, 1);
     }
 
-    public getEntryMessage():Messages.NewPosition {
-        return new Messages.NewPosition(
+    public getEntryMessage():Messages.Position {
+        return new Messages.Position(
             this.name, 
             this.space.name, 
             this.devices ? Array.from(this.devices.keys()) : [],
