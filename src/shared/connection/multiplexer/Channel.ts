@@ -59,10 +59,9 @@ export class Channel implements Interfaces.Connection {
         });
     }
 
-    public async send(msg: Interfaces.Data): Promise<void> {
+    public async send(msg: Interfaces.Data, params?:Record<string, any>): Promise<void> {
         if (msg instanceof ArrayBuffer) { // If it's binary, just send it
-            this.conn.send(Protocol.writeBinaryMsg(this.id, msg));
-            return;
+            return await this.conn.send(Protocol.writeBinaryMsg(this.id, msg), params);
         }
         // Otherwise it's a string
         const blob = this.injected.encode(msg);
@@ -70,12 +69,12 @@ export class Channel implements Interfaces.Connection {
         const writer = new DataView(frame);
         Protocol.writeStringHeader(this.id, writer);
         copyArrayBuffer(blob, 0, blob.byteLength, frame, Protocol.HEAD_LEN);
-        this.conn.send(frame);
+        this.conn.send(frame, params);
     }
 
-    public async close(msg: Interfaces.CloseMessage): Promise<void> {
+    public async close(msg: Interfaces.CloseMessage, params?:Record<string, any>): Promise<void> {
         const reason = this.injected.encode(msg.reason);
-        await this.conn.send(Protocol.buildCloseMsg(this.id, msg.code, reason));
+        await this.conn.send(Protocol.buildCloseMsg(this.id, msg.code, reason), params);
         this.closeInterface({ message: msg, local: true });
     }
 

@@ -43,7 +43,7 @@ export interface Connection {
     readonly closed:Promise<CloseEvent>;
     readonly isClosed:boolean;
 
-    send( data:Data ):Promise<void>|never;
+    send( data:Data, params?:Record<string, any>):Promise<void>|never;
     close( message:CloseMessage ):Promise<void>|never;
     terminate():void;
 }

@@ -55,23 +55,27 @@ export class Session implements ISession {
     }
 
     // This could have been an async function if it wasn't for Typescript
-    public send(msg: Interfaces.Data):Promise<void> {
+    public send(msg: Interfaces.Data, params?:Record<string, any>):Promise<void> {
         // Closed session
         if (this.isClosed) {
             return Promise.reject(new Interfaces.ConnectionClosedError());
         }
         // Open session
         if (this.connection) {
-            return this.connection.send(msg);
+            return this.connection.send(msg, params);
         } 
-        // Hanging session
+        // Hanging session and we can't wait
+        if (params?.immediate) {
+            return Promise.reject(new Interfaces.ConnectionClosedError());
+        }
+        // Hanging session and we can wait
         return Promise.race([
             this.resuming.next,
             this.closed
         ]).then(() => {
             // Session restored
             if (this.connection) {
-                return this.connection.send(msg);
+                return this.connection.send(msg, params);
             }
             // Session timed out
             return Promise.reject(new Interfaces.ConnectionClosedError());
