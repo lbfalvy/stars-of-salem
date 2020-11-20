@@ -6,17 +6,9 @@ export interface PersonDetails {
     color: string
 }
 
-export class PersonCard extends React.Component<PersonDetails> {
-    public constructor(props: Readonly<PersonDetails>) {
-        super(props);
-    }
-
-    public render(): React.ReactNode {
-        const style = { '--color': this.props.color } as React.CSSProperties;
-        return (
-            <div className='person-card' style={style}>
-                {this.props.name}
-            </div>
-        );
-    }
+export function PersonCard(props:PersonDetails):JSX.Element {
+    const style = { '--color': props.color } as React.CSSProperties;
+    return <div className='person-card' style={style}>
+        {props.name}
+    </div>;
 }
