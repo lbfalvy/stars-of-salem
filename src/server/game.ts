@@ -1,5 +1,5 @@
 import { Connection } from '../shared/connection/Interfaces';
-import { Position, Space, Device } from './GameElements';
+import { Position, Space } from './GameElements';
 
 // A dead simple notepad component to demonstrate the concept
 class Notepad {

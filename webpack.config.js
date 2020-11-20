@@ -2,8 +2,16 @@ const path = require('path');
 const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
+const express = require('express');
+const { default:findPlugins } = require('find-plugins');
+const { join } = require('path');
+const { existsSync } = require('fs');
+const glob = require('glob');
 
-var isDevelopment = process.env.NODE_ENV !== 'production';
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const plugins = findPlugins({
+  scanAllDirs: true // Load any plugin, not just dependencies
+});
 
 common_config = {
   mode: isDevelopment ? 'development' : 'production',
@@ -67,11 +75,24 @@ client_config = {
         ws: true,
         secure: false
       }
+    },
+    // Try to resolve static files from plugins
+    before: function(app, server, compiler) {
+      for (const plugin of plugins) {
+        const path = join(plugin.dir, 'dist');
+        if (existsSync(path)) {
+          app.use(express.static(path));
+        }
+      }
     }
   },
   // Build target
   entry: {
-    client: './src/client/index.tsx'
+    client: './src/client/index.tsx',
+    ...plugins.reduce((table, plugin) => {
+      const path = glob.sync(join(plugin.dir, 'dist/client.@(ts|tsx|js|jsx)'))[0];
+      table['plugin_'+plugin.pkg.name] = path; // Either the client entry or undefined
+    }, {})
   },
   // Hot reload
   plugins: [
