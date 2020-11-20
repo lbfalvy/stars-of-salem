@@ -20,14 +20,22 @@ export class Player extends Message {
     }
 }
 
+export interface Device {
+    readonly type: string; // Identifier for the cilent-side thing
+    readonly channel?: string; // Specified here so the device def can be simpler
+                               // Optional to allow more things to be described as devices
+    readonly options?: any; // This is passed as-is to the component
+    readonly position: {x:number,y:number}
+}
+
 export class Position extends Message { // to client
     public constructor(
         public readonly name: string,
         public readonly space: string,
-        //public readonly bgUrl: string // Aesthetic rework
+        public readonly users: Array<Player>, // Players visible here
         public readonly routes: Array<string>, // List of routes from here
-        public readonly devices: Array<string>, // List of device ports for client
-        public readonly users: Array<Player> // Players visible here
+        public readonly devices?: Array<Device>, // List of devices to render here
+        public readonly aspectRatio?: number, // Aspect ratio of the device view
     ) {
         super(Position.name);
     }

@@ -4,7 +4,7 @@ import { Disposable } from '../../shared/TypedEvent';
 import Player from './Player';
 import * as Messages from '../../shared/Messages';
 
-export interface Device {
+export interface Device extends Messages.Device {
     onViewed(conn: Connection, player: Player): Disposable;
 }
 
@@ -15,7 +15,7 @@ export default class Position {
 
     public constructor(public name: string, public space: Space, 
                        public routes: Array<Position>,
-                       public devices?: Map<string, Device>,
+                       public devices?: Array<Device>,
                        public cover?: Array<Position>) {
         space.positions.push(this);
     }
@@ -27,10 +27,12 @@ export default class Position {
         player.sendEvent(this.getEntryMessage());
         // Construct devices along with their channels and prepare all for disposal
         const dev_handles = new Array<Disposable>();
-        this.devices?.forEach(async (dev, name) => {
-            const chan = await player.createChannel(name);
-            dev_handles.push(dev.onViewed(chan, player));
-            dev_handles.push({ dispose: () => chan.close(Messages.Left) });
+        this.devices?.forEach(async dev => {
+            if (dev.channel) {
+                const chan = await player.createChannel(dev.channel);
+                dev_handles.push(dev.onViewed(chan, player));
+                dev_handles.push({ dispose: () => chan.close(Messages.Left) });
+            }
         });
         this.playerDisposables.set(player, dev_handles);
     }
@@ -50,10 +52,10 @@ export default class Position {
     public getEntryMessage():Messages.Position {
         return new Messages.Position(
             this.name, 
-            this.space.name, 
-            this.devices ? Array.from(this.devices.keys()) : [],
-            this.routes.map(r => r.name),
-            this.visiblePlayers.map(p => p.getMessage())
+            this.space.name,
+            this.visiblePlayers.map(p => p.getMessage()),
+            this.routes.map(r => r.name), 
+            this.devices
         );
     }
 

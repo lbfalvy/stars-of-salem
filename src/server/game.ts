@@ -2,7 +2,7 @@ import { Connection } from '../shared/connection/Interfaces';
 import { Position, Space, Device } from './GameElements';
 
 // A dead simple notepad component to demonstrate the concept
-class Notepad implements Device {
+class Notepad {
     public data = '';
     public clients = new Set<Connection>();
     public onViewed(conn:Connection) {
@@ -25,9 +25,13 @@ class Notepad implements Device {
 const lobby = new Space('Lobby');
 const start = new Position('Lobby', lobby, []);
 const lab = new Space('Laboratory');
-const table = new Position('Table', lab, [], new Map([
-    ['notepad', new Notepad()]
-]));
+const result_log = new Notepad();
+const table = new Position('Table', lab, [], [{
+    type:'textbox',
+    channel: 'notepad',
+    onViewed: result_log.onViewed.bind(result_log),
+    position: {x:0,y:0}
+}]);
 const labpos = new Position('Laboratory', lab, [start, table]);
 start.routes = [labpos];
 table.routes = [labpos];
