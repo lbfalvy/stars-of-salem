@@ -1,5 +1,5 @@
 import { copyArrayBuffer } from '../../arrayBuffer';
-import { exposeResolve, TypedEvent } from '../../TypedEvent';
+import { Disposable, exposeResolve, TypedEvent } from '../../TypedEvent';
 import * as Interfaces from '../Interfaces';
 import * as Protocol from './Protocol';
 
@@ -14,18 +14,15 @@ Protocol:
  | 2 bytes    | 2 bytes | 1 byte  | 2 bytes | ...    |
 */
 export class Channel implements Interfaces.Connection {
-    private readonly conn: Interfaces.Connection;
-    public readonly id: number;
-    private readonly injected: ChannelDependencies;
+    private readonly messageHandle:Disposable;
     public readonly closed = exposeResolve<Interfaces.CloseEvent>();
     public readonly message = new TypedEvent<Interfaces.Data>();
     public isClosed = false;
 
-    public constructor(conn: Interfaces.Connection, id: number, deps: ChannelDependencies) {
-        this.injected = deps;
-        this.conn = conn;
-        this.id = id;
-        const message_handle = conn.message.on(msg => {
+    public constructor(private readonly conn: Interfaces.Connection,
+                       public readonly id: number,
+                       private readonly injected: ChannelDependencies) {
+        this.messageHandle = conn.message.on(msg => {
             if (typeof msg == 'string') {
                 return;
             }
@@ -38,7 +35,7 @@ export class Channel implements Interfaces.Connection {
                 if (Protocol.hasContent(view)) {
                     message = {
                         code: Protocol.getCloseCode(view),
-                        reason: deps.decode(msg, Protocol.CLOSE_MSG_OFFSET)
+                        reason: injected.decode(msg, Protocol.CLOSE_MSG_OFFSET)
                     };
                 } else {
                     message = Interfaces.TERMINATED_MESSAGE;
@@ -48,17 +45,17 @@ export class Channel implements Interfaces.Connection {
             }
             let payload: string | ArrayBuffer;
             if (Protocol.isTypeString(view)) {
-                payload = deps.decode(msg, Protocol.HEAD_LEN);
+                payload = injected.decode(msg, Protocol.HEAD_LEN);
             } else {
                 payload = Protocol.getBinaryData(msg);
             }
             this.message.emit(payload); // Emit the remaining data
         });
-        conn.closed.then(() => {
+        conn.closed.then(ev => {
             if (this.isClosed) {
                 return;
             }
-            message_handle.dispose();
+            this.closeInterface(ev);
         });
     }
 
@@ -83,13 +80,16 @@ export class Channel implements Interfaces.Connection {
     }
 
     public terminate(): void {
-        // Notice that we aren't waiting.
-        this.conn.send(Protocol.buildEmptyCloseMsg(this.id));
+        // Terminating is intended for unreliable state, so double-terminating a connection
+        // technically isn't a problem.
+        this.conn.send(Protocol.buildEmptyCloseMsg(this.id))
+                 .catch(ex => console.info('Terminated an already closed connection', ex));
         this.closeInterface({ message: Interfaces.TERMINATED_MESSAGE, local: true });
     }
 
     /** Update this and fire closed event. */
     private closeInterface(ev: Interfaces.CloseEvent) {
+        this.messageHandle.dispose();
         this.isClosed = true;
         this.closed.resolve(ev);
         return;
