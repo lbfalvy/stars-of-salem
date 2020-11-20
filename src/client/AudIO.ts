@@ -17,7 +17,8 @@ export default class AudIO {
 
     private readonly backbuffer = new Array<ArrayBuffer>();
 
-    private constructor(private readonly context: AudioContext, stream: MediaStream, 
+    private constructor(private readonly context: AudioContext,
+                        private readonly stream: MediaStream, 
                         private readonly bufferSize:number) {
         const src = context.createMediaStreamSource(stream);
         this.processor = context.createScriptProcessor(bufferSize, 1, 1);
@@ -45,16 +46,23 @@ export default class AudIO {
         this.context.suspend();
     }
 
+    public dispose():void {
+        this.context.close();
+        this.stream.getAudioTracks().forEach(track => track.stop());
+    }
+
     public async playBuffer(value:ArrayBuffer):Promise<void> {
+        if (this.closed) {
+            console.error('Playing buffers on a closed connection');
+            throw new MediaError();
+        }
         this.backbuffer.unshift(value);
     }
 
     public static async create(sampleRate:number, bufferSize:number):Promise<AudIO> {
-        // Create common deps
         const context = new AudioContext({ sampleRate });
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const duplex = new AudIO(context, stream, bufferSize);
-        
         return duplex;
     }
 }
