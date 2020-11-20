@@ -1,0 +1,9 @@
+.reconnecting-overlay {
+    background-color: #fff4;
+}
+.reconnecting-overlay::before {
+    content: '';
+    display: block;
+    height: 100%;
+    filter: blur(10px);
+}

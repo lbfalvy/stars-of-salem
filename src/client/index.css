@@ -11,3 +11,16 @@ body {
     height: 100%;
     color: #fff;
 }
+
+.center {
+    position: absolute;
+    display: block;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+html, body, #root, .fill-parent {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+}
