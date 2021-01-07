@@ -68,7 +68,7 @@
     "commander": "^6.2.0",
     "find-plugins": "^1.1.7",
     "mime-types": "^2.1.27",
-    "node": "^14.15.0",
+    "node": "^10.23.0",
     "noise-gate": "0.0.3",
     "raw-media-recorder": "^2.5.0",
     "spdx-license-ids": "^3.0.7",
