@@ -9,7 +9,7 @@ program
         val => Number.parseInt(val), 1000)
 .option('-stu, --session-timeout <sec>',
         'Session timeout in seconds', 
-        val => Number.parseFloat(val), 60)
+        val => Number.parseFloat(val), 5)
 .parse();
 
 export default {

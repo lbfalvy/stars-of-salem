@@ -1,12 +1,39 @@
-import { CloseMessage, PROTOCOL_CODE_RANGE } from './connection/Interfaces';
+import { PROTOCOL_CODE_RANGE } from "./connection";
 
-export type Constructor<T> = new (...args: any[]) => T;
+export const is = {
+    player(m: Transfer.Message): m is Transfer.Player {
+        return m.typeid == 'Player';
+    },
+    device(m: Transfer.Message): m is Transfer.Device {
+        return m.typeid == 'Device';
+    },
+    item(m: Transfer.Message): m is Transfer.Item {
+        return m.typeid == 'Item';
+    },
+    inventory(m: Transfer.Message): m is Transfer.Inventory {
+        return m.typeid == 'Inventory';
+    },
+    volume(m: Transfer.Message): m is Transfer.Volume {
+        return m.typeid == 'Volume';
+    },
+    move(m: Transfer.Message): m is Transfer.Move {
+        return m.typeid == 'Move';
+    },
+    give(m: Transfer.Message): m is Transfer.Give {
+        return m.typeid == 'Give';
+    },
+    position(m: Transfer.Message): m is Transfer.Position {
+        return m.typeid == 'Position';
+    },
+};
+
+/*export type Constructor<T> = new (...args: any[]) => T;
 
 export class Message {
     protected constructor(public readonly typeid: string) {}
 }
 
-export function is<T extends Message>(m:Message, c:Constructor<T>): m is T {
+export function is<T implements Message>(m: Message, c: Constructor<T>): m is T {
     return m.typeid == c.name;
 }
 
@@ -20,33 +47,21 @@ export class Player extends Message {
     }
 }
 
-export interface Device {
-    readonly type: string; // Identifier for the cilent-side thing
-    readonly channel?: string; // Specified here so the device def can be simpler
-                               // Optional to allow more things to be described as devices
-    readonly options?: any; // This is passed as-is to the component
-    readonly position: {x:number,y:number}
-}
-
 export class Position extends Message { // to client
     public constructor(
         public readonly name: string,
         public readonly space: string,
         public readonly users: Array<Player>, // Players visible here
         public readonly routes: Array<string>, // List of routes from here
-        public readonly devices?: Array<Device>, // List of devices to render here
+        public readonly devices?: Array<DeviceDetails>, // List of devices to render here
         public readonly aspectRatio?: number, // Aspect ratio of the device view
     ) {
         super(Position.name);
     }
-}
+}*/
 
-export const Left : CloseMessage = {
-    code: PROTOCOL_CODE_RANGE + 1,
-    reason: 'The player left this position'
-};
 
-export class PlayerLeft extends Message { // to client
+/*export class PlayerLeft extends Message { // to client
     public constructor(
         public readonly name: string
     ) {
@@ -96,4 +111,5 @@ export class SetVolume extends Message { // to server
     ) {
         super(SetVolume.name);
     }
-}
+}*/
+//throw new Error('This file shouldn\'t be included');

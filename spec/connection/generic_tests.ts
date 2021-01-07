@@ -1,12 +1,13 @@
-import * as Interfaces from '../../src/shared/connection/Interfaces';
+import { TERMINATED_MESSAGE } from "../../src/shared/connection";
+
 export type ConnectionWrapperFactory = (underlying: [
-    Interfaces.Connection,
-    Interfaces.Connection
+    Net.Connection,
+    Net.Connection
 ]) => Promise<[
-    Interfaces.Connection,
-    Interfaces.Connection
+    Net.Connection,
+    Net.Connection
 ]>;
-export function doesRelayStrings(c1: Interfaces.Connection, c2: Interfaces.Connection) {
+export function doesRelayStrings(c1: Net.Connection, c2: Net.Connection) {
     return async (): Promise<void> => {
         c1.send(`asdf`);
         const msg = await c2.message.next;
@@ -16,7 +17,7 @@ export function doesRelayStrings(c1: Interfaces.Connection, c2: Interfaces.Conne
         /* TODO: finish session tests */
     };
 }
-export function doesRelayArrayBuffers(c1: Interfaces.Connection, c2: Interfaces.Connection) {
+export function doesRelayArrayBuffers(c1: Net.Connection, c2: Net.Connection) {
     return async (): Promise<void> => {
         const ab = new ArrayBuffer(8);
         const view = new DataView(ab);
@@ -31,15 +32,15 @@ export function doesRelayArrayBuffers(c1: Interfaces.Connection, c2: Interfaces.
     };
 }
 export function closeEventAsserts(
-    conn: Interfaces.Connection, 
-    expected_event: Interfaces.CloseEvent
-): (ev: Interfaces.CloseEvent) => void | never {
-    return (ev: Interfaces.CloseEvent) => {
+    conn: Net.Connection, 
+    expected_event: Net.CloseEvent
+): (ev: Net.CloseEvent) => void | never {
+    return (ev: Net.CloseEvent) => {
         expect(ev).toEqual(expected_event);
         expect(conn.isClosed).toBeTrue(); // isClosed updated before event
     };
 }
-export function doesHandleClosing(c1: Interfaces.Connection, c2: Interfaces.Connection) {
+export function doesHandleClosing(c1: Net.Connection, c2: Net.Connection) {
     return async (): Promise<void> => {
         expect(c2.isClosed).toBeFalse(); // isClosed false at start
         expect(c1.isClosed).toBeFalse();
@@ -50,22 +51,22 @@ export function doesHandleClosing(c1: Interfaces.Connection, c2: Interfaces.Conn
         await Promise.all([c1.closed, c2.closed]);
     };
 }
-export function doesHandleTermination(c1: Interfaces.Connection, c2: Interfaces.Connection) {
+export function doesHandleTermination(c1: Net.Connection, c2: Net.Connection) {
     return async (): Promise<void> => {
         c2.closed.then(closeEventAsserts(c2, {
-            message: Interfaces.TERMINATED_MESSAGE,
+            message: TERMINATED_MESSAGE,
             local: false
         }));
         c1.closed.then(closeEventAsserts(c1, {
-            message: Interfaces.TERMINATED_MESSAGE,
+            message: TERMINATED_MESSAGE,
             local: true
         }));
         c1.terminate();
         await Promise.all([c1.closed, c2.closed]);
     };
 }
-export function doesKeepClientList(host: Interfaces.ConnectionTarget, 
-                                   connect: () => Promise<Interfaces.Connection>) {
+export function doesKeepClientList(host: Net.ConnectionTarget, 
+                                   connect: () => Promise<Net.Connection>) {
     return async (): Promise<void> => {
         expect(host.clients.size).toBe(0);
         const [cl_conn, srv_conn] = await Promise.all([

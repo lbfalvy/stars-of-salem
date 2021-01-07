@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "inlineSourceMap": true,
     "outDir": "./dist/",
     "lib": [ "es2018", "DOM", "DOM.Iterable", "ES2020", "WebWorker" ],
     "target": "es2018",
@@ -16,6 +17,11 @@
     "moduleResolution": "node",
     "skipLibCheck": true,
     "typeRoots": ["./custom_types"],
-    "types": ["node", "jasmine", "dom-mediacapture-record"]
+    "types": ["node", "jasmine", "dom-mediacapture-record"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+  },
+  "ts-node": {
+    "files": true
   }
 }

@@ -1,12 +1,11 @@
 import * as Ses from '../../src/shared/connection/sessions';
-import * as Interfaces from '../../src/shared/connection/Interfaces';
 import { Target } from '../helpers/MockConnectionTarget';
 import { doesHandleClosing, doesHandleTermination, doesRelayArrayBuffers, doesRelayStrings } from './generic_tests';
 import { exposeResolve } from '../../src/shared/TypedEvent';
 describe('Session', function () {
     let i = 0;
     let mock_tgt: Target;
-    let session: Interfaces.Connection;
+    let session: Net.Connection;
     let srv: Ses.Server;
     let client: Ses.Client;
     beforeEach(async function() {
@@ -44,7 +43,7 @@ describe('Session', function () {
             getUid: () => (i++).toString(),
             sessionFactory: (conn) => new Ses.Session(conn)
         });
-        let p = exposeResolve<Interfaces.Connection>();
+        let p = exposeResolve<Net.Connection>();
         // Client created, but connection not yet available
         const client = new Ses.Client(() => p);
         expect(client.isReady).toBeFalse(); // Client.isReady false before receiving connection
@@ -52,7 +51,7 @@ describe('Session', function () {
         // and the session should appear
         p.resolve(mock_tgt.connect());
         const [ses] = await Promise.all([
-            srv.connection.next as Promise<Ses.ISession>,
+            srv.connection.next as Promise<Net.Session>,
             client.ready
         ]);
         expect(client.isReady).toBeTrue();
@@ -91,7 +90,7 @@ describe('Session', function () {
         const conn = mock_tgt.connect();
         conn.send('');
         const [ses, key] = await Promise.all([
-            srv.connection.next as Promise<Ses.ISession>,
+            srv.connection.next as Promise<Net.Session>,
             conn.message.next
         ]);
         // Attempt takeover
@@ -122,7 +121,7 @@ describe('Session', function () {
         // Open a connection manually
         conn.send('');
         const [ses, key] = await Promise.all([
-            srv.connection.next as Promise<Ses.ISession>,
+            srv.connection.next as Promise<Net.Session>,
             conn.message.next
         ]);
         // - We'll pretend the connection broke here, but the server doesn't know it yet

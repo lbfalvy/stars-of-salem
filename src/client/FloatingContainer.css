@@ -1,0 +1,5 @@
+.floating-container {
+    position: absolute;
+    display: block;
+    font-size: 1.5;
+}

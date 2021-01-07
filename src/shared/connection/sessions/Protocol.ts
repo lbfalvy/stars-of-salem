@@ -1,4 +1,4 @@
-import { RESERVED_CODE_RANGE } from "../Interfaces";
+import { RESERVED_CODE_RANGE } from "..";
 
 export type Key = string;
 

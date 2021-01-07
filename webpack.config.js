@@ -7,6 +7,7 @@ const { default:findPlugins } = require('find-plugins');
 const { join } = require('path');
 const { existsSync } = require('fs');
 const glob = require('glob');
+const webpackNodeExternals = require('webpack-node-externals');
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const plugins = findPlugins({
@@ -113,6 +114,7 @@ server_config = {
   entry: {
     server: './src/server/index.ts'
   },
+  externals: [webpackNodeExternals()]
 };
 Object.setPrototypeOf(server_config, common_config);
 

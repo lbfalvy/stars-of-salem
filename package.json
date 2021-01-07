@@ -1,13 +1,13 @@
 {
-  "name": "stars-of-salem",
-  "version": "0.0.2",
+  "name": "pages-engine",
+  "version": "0.0.3",
   "private": true,
   "description": "My second attempt at diving into the JS ecosystem.",
   "scripts": {
     "debug": "concurrently -n 'server,client' -c 'yellow,cyan' -i 'nodemon' 'webpack serve'",
     "build-and-run": "npm run build && npm run run",
     "build": "NODE_ENV=production webpack",
-    "run": "node dist/server.js",
+    "run": "node --unhandled-rejections=strict dist/server.js",
     "test": "jasmine",
     "test:debug": "node --inspect --inspect-brk -r ts-node/register node_modules/jasmine/bin/jasmine.js",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
@@ -51,7 +51,6 @@
     "html-webpack-plugin": "^4.5.0",
     "jasmine": "^3.6.3",
     "nodemon": "^2.0.6",
-    "null-loader": "^4.0.1",
     "react": "^16.14.0",
     "react-dom": "^16.14.0",
     "react-refresh": "^0.8.3",
@@ -63,7 +62,7 @@
     "webpack": "^5.4.0",
     "webpack-cli": "^4.2.0",
     "webpack-dev-server": "^3.11.0",
-    "worklet-loader": "^1.0.0"
+    "webpack-node-externals": "^2.5.2"
   },
   "dependencies": {
     "commander": "^6.2.0",
@@ -72,6 +71,8 @@
     "node": "^14.15.0",
     "noise-gate": "0.0.3",
     "raw-media-recorder": "^2.5.0",
+    "spdx-license-ids": "^3.0.7",
+    "webpack-runtime-require": "^0.3.1",
     "ws": "^7.4.0"
   }
 }

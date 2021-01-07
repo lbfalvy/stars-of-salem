@@ -11,7 +11,7 @@ export function copyArrayBuffer(from: ArrayBuffer, start: number, length: number
     /* The next line casts the three arguments to integer by executing a bitwise operation.
     This optimization was standardised as part of the (now obsolete) asm.js specification.
     Although not all browsers support it, it can still be a performance improvement.*/
-    [start, length, offset] = [start | 0, length | 0, offset | 0];
+    [start, length, offset] = [start|0, length|0, offset|0];
     const source_view = new DataView(from);
     const target_view = new DataView(to);
     // Precomputing these allows us to do less computation per round
@@ -43,9 +43,8 @@ export function compose(words: Array<number>): ArrayBuffer {
 
 export function bufferToArrayBuffer(buffer: Uint8Array): ArrayBuffer {
     let data: ArrayBuffer;
-    if (buffer.byteLength == buffer.buffer.byteLength) {
-        data = buffer.buffer;
-    } else {
+    if (buffer.byteLength == buffer.buffer.byteLength) data = buffer.buffer;
+    else {
         data = new ArrayBuffer(buffer.byteLength);
         copyArrayBuffer(buffer.buffer, buffer.byteOffset, buffer.byteLength, data, 0);
     }

@@ -1,18 +1,5 @@
-type Listener<T> = (event: T) => unknown;
-
-export interface Disposable {
-    dispose(): void;
-}
-
-export interface TypedEventSource<T> {
-    on(listener:Listener<T>):Disposable;
-    readonly next:Promise<T>;
-    pipe<K>(te:TypedEvent<K>, transform: (x:T) => K):Disposable;
-    pipeRaw(te:TypedEvent<T>):Disposable;
-}
-
 /** passes through events as they happen. You will not get events from before you start listening */
-export class TypedEvent<T> implements TypedEventSource<T> {
+export class TypedEvent<T> implements TypedEventSource<T>, TypedEmitter<T> {
     private readonly listeners: Listener<T>[] = [];
     private listenersOncer: Listener<T>[] = [];
 
@@ -21,20 +8,16 @@ export class TypedEvent<T> implements TypedEventSource<T> {
         return {
             dispose: () => {
                 const callbackIndex = this.listeners.indexOf(listener);
-                if (callbackIndex > -1) {
-                    this.listeners.splice(callbackIndex, 1);
-                }
+                if (callbackIndex > -1) this.listeners.splice(callbackIndex, 1);
             }
         };
     }
 
     public get next(): Promise<T> {
-        return new Promise(res => {
-            this.listenersOncer.push(ev => res(ev));
-        });
+        return new Promise(res => this.listenersOncer.push(ev => res(ev)));
     }
 
-    private runHandler(listener:Listener<T>, event:T) {
+    private runHandler(listener: Listener<T>, event: T) {
         listener(event);
     }
 
@@ -53,11 +36,11 @@ export class TypedEvent<T> implements TypedEventSource<T> {
         });
     }
 
-    public pipeRaw(te: TypedEvent<T>): Disposable {
+    public pipeRaw(te: TypedEmitter<T>): Disposable {
         return this.on((e) => te.emit(e));
     }
 
-    public pipe<K>(te: TypedEvent<K>, transform: (x: T) => K): Disposable {
+    public pipe<K>(te: TypedEmitter<K>, transform: (x: T) => K): Disposable {
         return this.on((e) => te.emit(transform(e)));
     }
 }
@@ -65,19 +48,15 @@ export class TypedEvent<T> implements TypedEventSource<T> {
 // The following appears in this file because it's mainly used to represent events
 // that happen only once.
 
-export type ExposedPromise<T> = Promise<T> & { 
-    resolve: (arg:T) => void
-    reject: (arg:any) => void
-};
-export function exposeResolve<T>():ExposedPromise<T> {
-    let res!:(arg:T)=>void;
-    let rej!:(arg:any)=>void;
+export function exposeResolve<T>(): ExposedPromise<T> {
+    let res!: (arg: T) => void;
+    let rej!: (arg: any) => void;
     const p = new Promise<T>((resolve, reject) => {
         res = resolve;
         rej = reject;
     });
     return Object.assign(p, {resolve:res, reject:rej});
 }
-export function isExposed<T>(p:Promise<T>): p is ExposedPromise<T> {
+export function isExposed<T>(p: Promise<T>): p is ExposedPromise<T> {
     return 'resolve' in p;
 }

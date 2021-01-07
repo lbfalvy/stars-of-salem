@@ -33,14 +33,16 @@ module.exports = {
     }
   ],
   rules: {
-    'brace-style': 'warn',
-    curly: 'warn',
+    'brace-style': ['warn', {
+      'allowSingleLine': true
+    }],
     semi: 'warn',
     "no-unused-vars": "off",
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unnecessary-condition': 'warn',
     '@typescript-eslint/no-unused-vars': ['warn', {
-      varsIgnorePattern: '^_'
+      varsIgnorePattern: '^_',
+      argsIgnorePattern: '^_'
     }],
     '@typescript-eslint/naming-convention': ['error',
       { selector: 'typeLike', format: ['PascalCase'] },
@@ -54,6 +56,7 @@ module.exports = {
       ignoreTemplateLiterals: true,
       ignoreRegExpLiterals: true
     }],
+    // Cosmetic
     indent: ['warn', 4, {
       FunctionDeclaration: { parameters: 'first' },
       FunctionExpression: { parameters: 'first' },
@@ -62,6 +65,15 @@ module.exports = {
       ObjectExpression: 'first',
       ignoreComments: true,
       MemberExpression: 'off'
+    }],
+    '@typescript-eslint/type-annotation-spacing': ['warn', {
+      before: false, after: true,
+      overrides: {
+        arrow: { before: true, after: true }
+      }
+    }],
+    '@typescript-eslint/space-infix-ops': ['warn', {
+      int32Hint: true,
     }]
   },
   env: {

@@ -1,0 +1,17 @@
+.single-select label {
+    display: block;
+}
+.single-select button {
+    display: block;
+    text-align: left;
+    background-color: inherit;
+    width: 100%;
+    padding: 0px 10px;
+    border: none;
+}
+.single-select button:hover {
+    background-color: #ddd;
+}
+.single-select .active {
+    border-left: 5px solid red;
+}

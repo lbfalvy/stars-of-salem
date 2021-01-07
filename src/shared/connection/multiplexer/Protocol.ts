@@ -37,8 +37,7 @@ export function buildCreateChannel(id: number): ArrayBuffer {
     return frame;
 }
 export function isCreateChannel(view: DataView): boolean {
-    return isControlPacket(view)
-        && view.getUint16(4) == CREATE_CHANNEL;
+    return isControlPacket(view) && view.getUint16(4) == CREATE_CHANNEL;
 }
 export function getCreateChannelId(view: DataView): number {
     return view.getUint16(6);

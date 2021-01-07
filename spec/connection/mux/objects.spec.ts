@@ -1,6 +1,5 @@
 import * as Mux from '../../../src/shared/connection/multiplexer';
 import { doesHandleClosing, doesHandleTermination, doesKeepClientList, doesRelayArrayBuffers, doesRelayStrings } from '../generic_tests';
-import * as Interfaces from '../../../src/shared/connection/Interfaces';
 import { bufferToArrayBuffer } from '../../../src/shared/arrayBuffer';
 import { MockConnection } from '../../helpers/MockConnection';
 
@@ -14,7 +13,7 @@ describe('Multiplexer', function () {
     
 
     describe('should act like a normal connection', function () {
-        const host_deps:Mux.Host.Dependencies = {
+        const host_deps: Mux.Host.Dependencies = {
             channelFactory: () => {
                 fail('This multiplexer shouldn\'t create channels');
                 throw new Error();
@@ -38,8 +37,8 @@ describe('Multiplexer', function () {
         const host_deps: Mux.Host.Dependencies = {
             channelFactory: (c, id) => new Mux.Channel.Channel(c, id, channel_deps)
         };
-        let c1: Interfaces.Connection;
-        let c2: Interfaces.Connection;
+        let c1: Net.Connection;
+        let c2: Net.Connection;
         beforeEach(function(done) {
             const [m1, m2] = MockConnection.getPair();
             const h1 = new Mux.Host.Host(m1, host_deps);
@@ -63,7 +62,7 @@ describe('Multiplexer', function () {
 
     it('should keep an up-to-date list of clients', async function () {
         const [m1, m2] = MockConnection.getPair();
-        const host_deps:Mux.Host.Dependencies = {
+        const host_deps: Mux.Host.Dependencies = {
             channelFactory: (c, id) => new Mux.Channel.Channel(c, id, channel_deps)
         };
         const h1 = new Mux.Host.Host(m1, host_deps);

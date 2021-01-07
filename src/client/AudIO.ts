@@ -2,13 +2,13 @@ import { TypedEvent } from "../shared/TypedEvent";
 import NoiseGateNode from 'noise-gate';
 
 export default class AudIO {
-    public get running():boolean {
+    public get running(): boolean {
         return this.context.state == 'running';
     }
-    public get closed():boolean {
+    public get closed(): boolean {
         return this.context.state == 'closed';
     }
-    public get suspended():boolean {
+    public get suspended(): boolean {
         return this.context.state == 'suspended';
     }
     public currentlyPlaying = false;
@@ -19,7 +19,7 @@ export default class AudIO {
 
     private constructor(private readonly context: AudioContext,
                         private readonly stream: MediaStream, 
-                        private readonly bufferSize:number) {
+                        private readonly bufferSize: number) {
         const src = context.createMediaStreamSource(stream);
         this.processor = context.createScriptProcessor(bufferSize, 1, 1);
         this.processor.addEventListener('audioprocess', ev => {
@@ -38,20 +38,20 @@ export default class AudIO {
         this.startDataCallbacks();
     }
 
-    public startDataCallbacks():void {
+    public startDataCallbacks(): void {
         this.context.resume();
     }
 
-    public stopDataCallbacks():void {
+    public stopDataCallbacks(): void {
         this.context.suspend();
     }
 
-    public dispose():void {
+    public dispose(): void {
         this.context.close();
         this.stream.getAudioTracks().forEach(track => track.stop());
     }
 
-    public async playBuffer(value:ArrayBuffer):Promise<void> {
+    public async playBuffer(value: ArrayBuffer): Promise<void> {
         if (this.closed) {
             console.error('Playing buffers on a closed connection');
             throw new MediaError();
@@ -59,9 +59,13 @@ export default class AudIO {
         this.backbuffer.unshift(value);
     }
 
-    public static async create(sampleRate:number, bufferSize:number):Promise<AudIO> {
+    public static async create(sampleRate: number, bufferSize: number): Promise<AudIO> {
         const context = new AudioContext({ sampleRate });
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+            sampleRate,
+            echoCancellation: true,
+            noiseSuppression: true
+        } });
         const duplex = new AudIO(context, stream, bufferSize);
         return duplex;
     }

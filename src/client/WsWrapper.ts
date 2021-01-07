@@ -1,13 +1,13 @@
-import * as Interfaces from '../shared/connection/Interfaces';
+import { ConnectionClosedError, TERMINATED_MESSAGE } from '../shared/connection';
 import { exposeResolve, TypedEvent } from '../shared/TypedEvent';
 
-export class WsWrapper implements Interfaces.Connection {
-    private ws:WebSocket;
-    public message = new TypedEvent<Interfaces.Data>();
-    public closed = exposeResolve<Interfaces.CloseEvent>();
-    public isClosed:boolean;
+export class WsWrapper implements Net.Connection {
+    private ws: WebSocket;
+    public message = new TypedEvent<Net.Data>();
+    public closed = exposeResolve<Net.CloseEvent>();
+    public isClosed: boolean;
 
-    public constructor( ws:WebSocket ) {
+    public constructor( ws: WebSocket ) {
         this.ws = ws;
         this.isClosed = ws.readyState == WebSocket.CLOSED || ws.readyState == WebSocket.CLOSING;
         ws.binaryType = "arraybuffer";
@@ -18,9 +18,7 @@ export class WsWrapper implements Interfaces.Connection {
             }
         };
         ws.onclose = ev => {
-            if ( this.isClosed ) {
-                return;
-            }
+            if ( this.isClosed ) return;
             this.isClosed = true;
             this.closed.resolve({
                 message: { code: ev.code, reason: ev.reason },
@@ -29,28 +27,24 @@ export class WsWrapper implements Interfaces.Connection {
         };
     }
 
-    public async send( msg:Interfaces.Data ):Promise<void> {
-        if ( this.isClosed ) {
-            throw new Interfaces.ConnectionClosedError();
-        }
+    public async send( msg: Net.Data ): Promise<void> {
+        if ( this.isClosed ) throw new ConnectionClosedError();
         this.ws.send(msg);
         return; 
         // TODO: pray it arrives because the browser WS api has no callback
     }
 
-    public async close( msg:Interfaces.CloseMessage ):Promise<void> {
-        if ( this.isClosed ) {
-            throw new Interfaces.ConnectionClosedError();
-        }
+    public async close( msg: Net.CloseMessage ): Promise<void> {
+        if ( this.isClosed ) throw new ConnectionClosedError();
         this.isClosed = true;
         this.ws.close( msg.code, msg.reason );
         this.closed.resolve({ message: msg, local: true });
         return;
     }
 
-    public terminate():void {
+    public terminate(): void {
         this.isClosed = true;
         this.ws.close();
-        this.closed.resolve({ message: Interfaces.TERMINATED_MESSAGE, local: true });
+        this.closed.resolve({ message: TERMINATED_MESSAGE, local: true });
     }
 }

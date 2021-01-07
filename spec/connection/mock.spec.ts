@@ -1,11 +1,10 @@
-import * as Interfaces from '../../src/shared/connection/Interfaces';
 import { MockConnection } from '../helpers/MockConnection';
 import { doesHandleClosing, doesHandleTermination, doesRelayArrayBuffers, doesRelayStrings } from "./generic_tests";
 
 describe('Connection mock', function () {
     describe('should pass all the tests that a normal connection would', function () {
-        let c1: Interfaces.Connection;
-        let c2: Interfaces.Connection;
+        let c1: Net.Connection;
+        let c2: Net.Connection;
 
         beforeEach(function(){
             [c1, c2] = MockConnection.getPair();

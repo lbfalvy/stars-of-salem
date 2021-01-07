@@ -1,27 +1,24 @@
 import { TypedEvent } from '../../TypedEvent';
-import * as Interfaces from '../Interfaces';
 import * as Protocol from './Protocol';
-import * as Session from './Session';
 
 export interface ServerOptions {
     sessionTimeout?: number,
     socketTimeout?: number
 }
 
-export type ConnectionWrapper = 
-    (conn: Interfaces.Connection, resuming: boolean) => Interfaces.Connection;
+export type ConnectionWrapper = (conn: Net.Connection, resuming: boolean) => Net.Connection;
 export interface ServerDependencies {
-    sessionFactory(conn: Interfaces.Connection): Session.ISession,
+    sessionFactory(conn: Net.Connection): Net.Session,
     connWrapper?: ConnectionWrapper,
     getUid(): string
 }
 
-export class Server implements Interfaces.ConnectionTarget {
+export class Server implements Net.ConnectionTarget {
 
-    private sessionStore = new Map<Protocol.Key, Session.ISession>(); 
-    public readonly connection = new TypedEvent<Interfaces.Connection>();
+    private sessionStore = new Map<Protocol.Key, Net.Session>(); 
+    public readonly connection = new TypedEvent<Net.Connection>();
 
-    public constructor(server: Interfaces.ConnectionTarget, deps: ServerDependencies) {
+    public constructor(server: Net.ConnectionTarget, deps: ServerDependencies) {
         const wrap_conn = deps.connWrapper || (c => c);
         server.connection.on(async conn => {
             //conn.closed.then(ev => console.debug('Client disconnected:', ev));
@@ -49,16 +46,13 @@ export class Server implements Interfaces.ConnectionTarget {
                 this.connection.emit(session);
             } else {
                 const session = this.sessionStore.get(key);
-                if (session) {
-                    session.onReconnect(wrap_conn(conn, true));
-                } else {
-                    conn.close(Protocol.messages.invalidSession);
-                }
+                if (session) session.onReconnect(wrap_conn(conn, true));
+                else conn.close(Protocol.messages.invalidSession);
             }
         });
     }
 
-    public get clients(): Set<Session.ISession> {
+    public get clients(): Set<Net.Session> {
         return new Set(this.sessionStore.values());
     }
 }
