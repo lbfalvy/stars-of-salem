@@ -13,28 +13,21 @@ export default class AudIO {
     }
     public currentlyPlaying = false;
     public readonly gotFrame = new TypedEvent<ArrayBuffer>();
-    public readonly processor: ScriptProcessorNode;
 
     private readonly backbuffer = new Array<ArrayBuffer>();
 
     private constructor(private readonly context: AudioContext,
-                        private readonly stream: MediaStream, 
-                        private readonly bufferSize: number) {
+                        private readonly stream: MediaStream,
+                        private readonly voipNode: AudioWorkletNode) {
         const src = context.createMediaStreamSource(stream);
-        this.processor = context.createScriptProcessor(bufferSize, 1, 1);
-        this.processor.addEventListener('audioprocess', ev => {
-            const floats = ev.inputBuffer.getChannelData(0);
-            this.gotFrame.emit(floats.buffer.slice(floats.byteOffset, 
-                                                   floats.byteOffset + floats.byteLength));
-            const buf = this.backbuffer.pop();
-            if (buf) {
-                ev.outputBuffer.copyToChannel(new Float32Array(buf), 0, 0);
-            }
-        });
+        voipNode.port.onmessage = (ev: { data: Float32Array }) => {
+            this.gotFrame.emit(ev.data.buffer.slice(ev.data.byteOffset,
+                ev.data.byteOffset + ev.data.byteLength));
+        }
         const gate = new NoiseGateNode(context);
         src.connect(gate);
-        gate.connect(this.processor);
-        this.processor.connect(this.context.destination);
+        gate.connect(voipNode);
+        voipNode.connect(this.context.destination);
         this.startDataCallbacks();
     }
 
@@ -56,17 +49,21 @@ export default class AudIO {
             console.error('Playing buffers on a closed connection');
             throw new MediaError();
         }
-        this.backbuffer.unshift(value);
+        const floats = new Float32Array(value);
+        this.voipNode.port.postMessage(floats, [floats, value]);
     }
 
     public static async create(sampleRate: number, bufferSize: number): Promise<AudIO> {
-        const context = new AudioContext({ sampleRate });
+        const context = new AudioContext();
         const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-            sampleRate,
             echoCancellation: true,
-            noiseSuppression: true
+            noiseSuppression: true,
         } });
-        const duplex = new AudIO(context, stream, bufferSize);
+        await context.audioWorklet.addModule('/audio.js');
+        const voipNode = new AudioWorkletNode(context, 'voip-processor');
+        voipNode.port.postMessage({ sampleRate, bufferSize });
+        await new Promise(res => voipNode.port.addEventListener('message', res, { once: true }));
+        const duplex = new AudIO(context, stream, voipNode);
         return duplex;
     }
 }

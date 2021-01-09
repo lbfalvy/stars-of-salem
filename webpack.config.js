@@ -70,6 +70,9 @@ client_config = {
     hot: true,
     hotOnly: true,
     injectHot: true,
+    host: '0.0.0.0',
+    disableHostCheck: true,
+    https: true,
     proxy: {
       '/api': {
         target: 'ws://localhost:3000',
@@ -90,6 +93,7 @@ client_config = {
   // Build target
   entry: {
     client: './src/client/index.tsx',
+    audio: './src/client/audio_worklet.ts',
     ...plugins.reduce((table, plugin) => {
       const path = glob.sync(join(plugin.dir, 'dist/client.@(ts|tsx|js|jsx)'))[0];
       table['plugin_'+plugin.pkg.name] = path; // Either the client entry or undefined
@@ -97,12 +101,18 @@ client_config = {
   },
   // Hot reload
   plugins: [
-    isDevelopment && new ReactRefreshWebpackPlugin(),
+    isDevelopment && new ReactRefreshWebpackPlugin({
+      exclude: [
+        '/node_modules/',
+        /audio_worlet\.ts/,
+      ]
+    }),
     isDevelopment && new webpack.HotModuleReplacementPlugin(),
     new HtmlWebpackPlugin({
       showErrors: true,
       title: 'Stars of Salem',
-      template: './src/client/index.ejs'
+      template: './src/client/index.ejs',
+      excludeChunks: ['audio']
     })
   ].filter(Boolean),
 };
